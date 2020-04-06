@@ -3,6 +3,7 @@ import json
 import time
 import socket
 import selectors
+import pickle
 
 
 sel = selectors.DefaultSelector()
@@ -94,12 +95,19 @@ class Blockchain:
         """
     pass
 
+    def persist_bock(self, block):
+        filename = repr(block.index) + ".block"
+        with open(filename, 'wb') as f:
+            pickle.dump(block, f, pickle.HIGHEST_PROTOCOL)
+
     def persist_chain(self):
         """
         save blockchain to disk
         :return:
         """
-
+        size = len(self.chain)
+        for i in range(size):
+            self.persist_bock(self.chain[i])
         return
 
 
@@ -142,5 +150,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         if COUNT == BLOCK_SIZE:
             block = Block(GLOBAL_BLOCK_COUNT, blockstr, time.time(), blockchain.last_block.hash)
             blockchain.add_block(block)
+            blockchain.persist_bock(block)
             COUNT = 0
             block = ""
