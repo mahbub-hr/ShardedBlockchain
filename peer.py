@@ -34,7 +34,6 @@ class Block:
         self.timestamp = timestamp
         self.previous_hash = previous_hash  # Adding the previous hash field
 
-
     def compute_hash(self):
         """
         Returns the hash of the block instance by first converting it
@@ -43,6 +42,12 @@ class Block:
         block_string = json.dumps(self.__dict__,
                                   sort_keys=True)  # The string equivalent also considers the previous_hash field now
         return sha256(block_string.encode()).hexdigest()
+
+    def persist_bock(self):
+        filename = repr(self.index) + ".block"
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
+        return
 
 
 class Blockchain:
@@ -95,11 +100,6 @@ class Blockchain:
         """
     pass
 
-    def persist_bock(self, block):
-        filename = repr(block.index) + ".block"
-        with open(filename, 'wb') as f:
-            pickle.dump(block, f, pickle.HIGHEST_PROTOCOL)
-
     def persist_chain(self):
         """
         save blockchain to disk
@@ -107,7 +107,7 @@ class Blockchain:
         """
         size = len(self.chain)
         for i in range(size):
-            self.persist_bock(self.chain[i])
+            self.chain[i].persist_block()
         return
 
 
@@ -149,7 +149,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         COUNT += 1
         if COUNT == BLOCK_SIZE:
             block = Block(GLOBAL_BLOCK_COUNT, blockstr, time.time(), blockchain.last_block.hash)
+            block.hash = block.compute_hash()
+            block.persist_bock()
             blockchain.add_block(block)
-            blockchain.persist_bock(block)
             COUNT = 0
             block = ""
+            GLOBAL_BLOCK_COUNT += 1
