@@ -1,75 +1,70 @@
-#!/usr/bin/env python3
+import requests
+import json
 
-import sys
-import socket
-import selectors
-import traceback
-import time
-import libclient
+CONNECTED_NODE_ADDRESS = "http://127.0.0.1:"
+NODE = ["http://localhost:5000", "http://localhost:5001"]
 
-sel = selectors.DefaultSelector()
+def new_transaction(port):
+    addr = CONNECTED_NODE_ADDRESS+repr(port)
+    print(addr)
+    new_tx_address = "{}/transactions/new".format(addr)
+    data = {'sender':'A',
+            'recipient':'B',
+            'amount': 5}
 
-
-def create_request(action, value):
-    if action == "search":
-        return dict(
-            type="text/json",
-            encoding="utf-8",
-            content=dict(action=action, value=value),
-        )
-    elif action == "transaction":
-        return dict(
-            type="text/json",
-            encoding="utf-8",
-            content=dict(action=action, txid=time.time(),sender="A", receiver="B", amount="100"),
-        )
-    else:
-        return dict(
-            type="binary/custom-client-binary-type",
-            encoding="binary",
-            content=bytes(action + value, encoding="utf-8"),
-        )
+    response = requests.post(new_tx_address, json=data, headers={'Content-type': 'application/json'})
+    if response.status_code == 201:
+        print(json.loads(response.content))
 
 
-def start_connection(host, port, request):
-    addr = (host, port)
-    print("starting connection to", addr)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setblocking(False)
-    sock.connect_ex(addr)
-    events = selectors.EVENT_READ | selectors.EVENT_WRITE
-    message = libclient.Message(sel, sock, addr, request)
-    sel.register(sock, events, data=message)
+def print_worldstate():
+    response = requests.get("{}/print".format(CONNECTED_NODE_ADDRESS))
 
 
-if len(sys.argv) != 5:
-    print("usage:", sys.argv[0], "<host> <port> <action> <value>")
-    #sys.exit(1)
+def register_to_anchor():
+    data = {'node_address': 'http://localhost:5000'}
+    register_address = "{}/register_with".format(NODE[1])
+    response = requests.post(register_address, json=data, headers={"Content-Type": 'application/json'})
+    if response.status_code ==200:
+        print(json.loads(response.content))
 
-#host, port = sys.argv[1], int
-host, port = '127.0.0.1', 8888
-#action, value = sys.argv[3], sys.argv[4]
-action, value = 'transaction', 'ring'
-request = create_request(action, value)
-start_connection(host, port, request)
 
-try:
-    while True:
-        events = sel.select(timeout=1)
-        for key, mask in events:
-            message = key.data
-            try:
-                message.process_events(mask)
-            except Exception:
-                print(
-                    "main: error: exception for",
-                    f"{message.addr}:\n{traceback.format_exc()}",
-                )
-                message.close()
-        # Check for a socket being monitored to continue.
-        if not sel.get_map():
-            break
-except KeyboardInterrupt:
-    print("caught keyboard interrupt, exiting")
-finally:
-    sel.close()
+def querybalance(key):
+    url = "{}/query".format(NODE[0])
+    data = {"key":key}
+    response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
+    if response.status_code == 200:
+        print(response.content)
+
+def wholeshardquery(key):
+    url = "{}/wholeshardquery".format(NODE[0])
+    data = {"sender":key}
+    response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
+
+    print(response.content)
+
+def shardinit():
+    response=requests.get(CONNECTED_NODE_ADDRESS+"5000/shardinit")
+    print(response.content)
+
+def printchain(port):
+    url = "{}/printchain".format(CONNECTED_NODE_ADDRESS+repr(port))
+    response = requests.get(url)
+    print(response.content)
+
+# for i in range(4):
+#    new_transaction(5000)
+#
+# register_to_anchor()
+# shardinit()
+#
+# for i in range(4):
+#     new_transaction(5000)
+#     new_transaction(5001)
+# shardinit()
+#
+# printchain(5000)
+# printchain(5001)
+#     new_transaction(5001)
+
+wholeshardquery('A')
