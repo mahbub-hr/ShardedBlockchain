@@ -19,6 +19,17 @@ class ShardInfoTracker:
         self.node_to_shard[node].append(shard)
         self.shard_to_node[shard].append(node)
 
+    def insert_dict(self, node_shard):
+        for node in node_shard:
+            if node not in self.node_to_shard:
+                self.node_to_shard[node] = []
+            self.node_to_shard[node].extend(node_shard[node])
+
+            for shard in node_shard[node]:
+                if shard not in self.shard_to_node:
+                    self.shard_to_node[shard] = []
+                self.shard_to_node[shard].append(node)
+
     def print(self):
         print(json.dumps(self.node_to_shard, indent=4))
 

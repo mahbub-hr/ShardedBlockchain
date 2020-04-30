@@ -23,7 +23,7 @@ tracker = blockchain.ShardInfoTracker()
 
 peers = []
 
-def insert_peer(p):
+def peer_insert(p):
     if p not in peers:
         peers.append(p)
     else:
@@ -89,7 +89,7 @@ def register_new_peers():
         return "Invalid data", 400
 
     # Add the node to the peer list
-    insert_peer(node_address)
+    peer_insert(node_address)
     return full_chain()
 
 
@@ -177,20 +177,36 @@ def init_shard():
     global peers
     global OVERLAPPING
 
+    track = blockchain.ShardInfoTracker()
+
     IS_SHARDED = True
     print(peers)
     num_of_shard = (len(chain.chain)-LAST_CHAIN_SIZE)/SHARD_SIZE
     print('num of shard: ', num_of_shard)
     i=1
+    # make this global to turn around lapping
+    x = 0
+    overlapping = OVERLAPPING
     while i <= num_of_shard:
+        temp = LAST_SHARD + i
+        track.insert(peers[x], temp)
+        overlapping -= 1
+        x += 1
 
-        for x in peers:
-            tracker.insert(x, LAST_SHARD+i)
-            i+=1
-            if i > num_of_shard:
-                LAST_SHARD = i-1
-                break;
+        if x >= len(peers):
+            x = 0
 
+        if overlapping <= 0:
+            i += 1
+            overlapping = OVERLAPPING
+
+    # can be removed
+        if i > num_of_shard:
+            LAST_SHARD = temp
+
+            break;
+
+    tracker.insert_dict(track.node_to_shard)
     tracker.print()
     apply_sharding()
     send_info()
@@ -296,5 +312,5 @@ if __name__ == '__main__':
     IS_ANCHOR = args.anchor
     SELF_KEY="http://localhost:" + repr(NODE_NUMBER) + "/"
     print(get_my_key())
-    insert_peer(get_my_key())
+    peer_insert(get_my_key())
     app.run(host='127.0.0.1', port=port, debug=True)
