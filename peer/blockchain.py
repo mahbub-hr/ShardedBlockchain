@@ -30,8 +30,16 @@ class ShardInfoTracker:
                     self.shard_to_node[shard] = []
                 self.shard_to_node[shard].append(node)
 
+    def remove_shard(self, shard):
+        node = self.shard_to_node[shard].pop(0)
+        self.node_to_shard[node].remove(shard)
+        return node
+
     def print(self):
         print(json.dumps(self.node_to_shard, indent=4))
+
+    def printshard(self):
+        print(json.dumps(self.shard_to_node, indent=4))
 
 class Worldstate:
     def __init__(self):
