@@ -35,6 +35,7 @@ class ShardInfoTracker:
         self.node_to_shard[node].remove(shard)
         return node
 
+
     def print(self):
         print(json.dumps(self.node_to_shard, indent=4))
 
@@ -56,6 +57,14 @@ class Worldstate:
         # need a check for double spending
         self.worldstate[sender] = self.worldstate[sender] - amount
         self.worldstate[receiver] = self.worldstate[receiver] + amount
+        return True
+    def update_with_block(self,block):
+        prev = self.worldstate
+        for tx in block.transactions:
+            ret=self.update(tx['sender'], tx['recipient'], tx['amount'])
+            if not ret:
+                self.worldstate = prev
+                return False
         return True
 
     def get(self, key):
@@ -104,12 +113,19 @@ class Blockchain:
 
     def add_block(self, block):
         previous_hash = self.last_block.hash
-        #this check seems unnecessary but i will leave it
         if previous_hash != block.previous_hash:
             return False
 
         self.chain.append(block)
         self.current_transactions = []
+        return True
+
+    def add_block_on_shard(self,block, previous_hash):
+        #this check is must , but i will implement it later
+        #if previous_hash != block.previous_hash:
+         #   return False
+
+        self.chain.append(block)
         return True
 
     def new_transaction(self, ts,sender, recipient, amount):
@@ -139,3 +155,24 @@ class Blockchain:
         for i in range(size):
             self.chain[i].persist_block()
         return
+
+    def remove_shard(self, shard, SHARD_SIZE):
+        end = shard*SHARD_SIZE
+        temp=[]
+        length = len(self.chain)
+        for i in range(1,length):
+            if end == self.chain[i].index:
+               break
+
+        i += 1
+        temp = self.chain[i-SHARD_SIZE:i]
+        del self.chain[i-SHARD_SIZE:i]
+        return temp
+
+    def remove_multiple_shards(self, shard_list, SHARD_SIZE):
+        temp = []
+
+        for shard in shard_list:
+            # need to remove minus sign
+            temp.extend(self.remove_shard(-shard, SHARD_SIZE))
+        return temp

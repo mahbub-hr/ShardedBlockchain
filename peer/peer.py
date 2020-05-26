@@ -2,9 +2,12 @@ import requests
 import json
 import time
 import sys
+import math
 from flask import Flask, jsonify, request
+app = Flask(__name__)
 
 import blockchain
+
 
 TX_PER_BLOCK = 1
 LAST_INDEX = 1
@@ -14,17 +17,48 @@ IS_SHARDED = False
 IS_ANCHOR = False
 SHARDING_THRESHOLD = 10
 OVERLAPPING = 1
+
 LAST_SHARD = 0
 LAST_CHAIN_SIZE = 1
 x = 0
 SELF_KEY = ""
-app = Flask(__name__)
-chain = blockchain.Blockchain()
+PREV_HASH=""
+bchain = blockchain.Blockchain()
+PREV_HASH = bchain.chain[0].hash
 worldstate = blockchain.Worldstate()
 tracker = blockchain.ShardInfoTracker()
 
 peers = []
 
+def initialize():
+
+    global  TX_PER_BLOCK, LAST_INDEX, IS_SHARDED,OVERLAPPING,LAST_SHARD,LAST_CHAIN_SIZE,x,PREV_HASH,peers
+    global bchain, worldstate, tracker
+    TX_PER_BLOCK = 1
+    LAST_INDEX = 1
+    IS_SHARDED = False
+    OVERLAPPING = 1
+    LAST_SHARD = 0
+    LAST_CHAIN_SIZE = 1
+    x = 0
+    PREV_HASH = ""
+    bchain = blockchain.Blockchain()
+    PREV_HASH = bchain.chain[0].hash
+    worldstate = blockchain.Worldstate()
+    tracker = blockchain.ShardInfoTracker()
+    peers = []
+    peer_insert(SELF_KEY)
+    
+    return
+
+@app.route("/setoverlap",methods=['POST'])
+def setoverlap():
+    global OVERLAPPING
+    data = request.get_json()
+    initialize()
+    print('initialized to zero')
+    OVERLAPPING = data['overlap']
+    return 'setoverlap returned',200
 
 def peer_insert(p):
     if p not in peers:
@@ -49,14 +83,24 @@ def get_my_key():
 @app.route('/getsize', methods=['GET'])
 def getchainsize():
     f = open("size.txt", 'a')
-    f.write(f' {SELF_KEY} {OVERLAPPING} {sys.getsizeof(chain.chain)}\n')
+    if SELF_KEY in tracker.node_to_shard:
+        num_of_shard = len(tracker.node_to_shard[SELF_KEY])
+        block_size = sys.getsizeof(bchain.chain[1])
+    else:
+        num_of_shard =0
+        block_size = 0
+
+    element = len(bchain.chain)-1
+    f.write(f'{SELF_KEY},{OVERLAPPING},{num_of_shard},{block_size},{element},{block_size*element}\n')
+
     f.close()
     return 'get size function returned', 200
 
-
+#act as a orderer
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     global LAST_INDEX
+    global PREV_HASH
     values = request.get_json()
 
     # Check that the required fields are in the POST'ed data
@@ -65,25 +109,39 @@ def new_transaction():
         return 'Missing values', 400
 
     # Create a new Transaction
-    index = chain.new_transaction(values['ts'], values['sender'], values['recipient'], values['amount'])
-    worldstate.update(values['sender'], values['recipient'], values['amount'])
-    if len(chain.current_transactions) == TX_PER_BLOCK:
-        block = blockchain.Block(LAST_INDEX, chain.current_transactions, time.time(), chain.last_block.hash)
-        block.hash = block.compute_hash()
-        added = chain.add_block(block)
-        LAST_INDEX += 1
-        print('block has been added')
-    if added:
-        response = {'message': f'Transaction added to Block {index}'}
-    else:
-        response = {'something is not right'}
-    return jsonify(response), 201
+    index = bchain.new_transaction(values['ts'], values['sender'], values['recipient'], values['amount'])
 
+    if len(bchain.current_transactions) == TX_PER_BLOCK:
+        #
+        block = blockchain.Block(LAST_INDEX, bchain.current_transactions, time.time(), PREV_HASH)
+        block.hash = block.compute_hash()
+        PREV_HASH = block.hash
+        peer_broadcast("add_block", block.__dict__, [])
+        LAST_INDEX += 1
+        bchain.current_transactions=[]
+        print('block has been broadcasted')
+
+    return 'block has been broadcasted', 201
+
+@app.route('/add_block', methods=['POST'])
+def verify_and_add_block():
+    block_data = request.get_json()
+    block = blockchain.Block(block_data["index"],
+                             block_data["transactions"],
+                             block_data["timestamp"],
+                             block_data["previous_hash"],
+                             )
+    block.hash = block_data['hash']
+    added = bchain.add_block_on_shard(block,"")
+    if not added:
+        return "The block was discarded by the node", 400
+    worldstate.update_with_block(block)
+    return "Block added to the chain", 201
 
 @app.route('/chain', methods=['GET'])
 def full_chain():
     chain_data = []
-    for block in chain.chain:
+    for block in bchain.chain:
         chain_data.append(block.__dict__)
 
     response = json.dumps(
@@ -97,12 +155,11 @@ def full_chain():
 
 def unsharded_chain():
     chain_data = []
-    for block in range(LAST_CHAIN_SIZE, len(chain.chain)):
+    for block in range(LAST_CHAIN_SIZE, len(bchain.chain)):
         chain_data.append(block.__dict__)
     return chain_data
 
 
-@app.route("/shardedchain/<node_address>", methods=['GET'])
 def sharded_chain(node_address):
     chain_data = []
     shard = []
@@ -112,6 +169,7 @@ def sharded_chain(node_address):
     track = blockchain.ShardInfoTracker()
     i = 1
     while k > 0:
+        #change here if we want to remove shard from node that have maximum shard
         node = tracker.remove_shard(i)
         tracker.insert(node_address, i)
         track.insert(node, -i)
@@ -120,24 +178,27 @@ def sharded_chain(node_address):
     track.print()
     tracker.print()
     unsharded = unsharded_chain()
+
+    print(node_address)
+
+    data = {
+            'track': track.__dict__,
+            'tracker':tracker.__dict__,
+            'node_address' : node_address
+    }
+    if SELF_KEY in track.node_to_shard:
+        shards = bchain.remove_multiple_shards(track.node_to_shard[SELF_KEY], SHARD_SIZE)
+        send_shard_to(shards,node_address)
+
+    resp = peer_broadcast('sendnewnodeinfo', data, {SELF_KEY, node_address})
+    print(resp)
+
     response = {
         'worldstate': worldstate.worldstate,
         'tracker': tracker.__dict__,
         'peers': peers,
         'chain': unsharded
     }
-    print(node_address)
-    for peer in peers:
-        if peer not in {SELF_KEY, node_address}:
-            print('sedning ', peer)
-            url = f"{peer}sendnewnodeinfo"
-            headers = {'Content-Type': "application/json"}
-            resp = requests.post(url,
-                                 json=(track.__dict__),
-                                 headers=headers)
-            if resp.status_code == 200:
-                print(peer, ": ", resp.content)
-
     return json.dumps(response)
 
 
@@ -170,16 +231,21 @@ def register_with_existing_node():
                              json=data, headers=headers)
 
     if response.status_code == 200:
-        global chain
+        global bchain
         global peers
         global worldstate
         global LAST_INDEX
         # update chain and the peers
         json_data = response.json()
         chain_dump = json_data['chain']
-        chain = create_chain_from_dump(chain_dump)
+        if not IS_SHARDED:
+            bchain = create_chain_from_dump(chain_dump)
+        if IS_SHARDED:
+            t = json_data['tracker']
+            tracker.node_to_shard = t['node_to_shard']
+            tracker.shard_to_node = t['shard_to_node']
         # need to remove if there is a seperate orderer
-        LAST_INDEX = chain.chain[-1].index + 1
+        LAST_INDEX = bchain.chain[-1].index + 1
         peer_update(json_data['peers'])
         print(peers)
         worldstate.worldstate = json_data['worldstate']
@@ -191,42 +257,64 @@ def register_with_existing_node():
 
 @app.route('/sendnewnodeinfo', methods=['POST'])
 def get_new_node_info():
+    global tracker
     response = request.get_json()
-    node_to_shard = response['node_to_shard']
-    print(node_to_shard)
+    track = response['track']
+    tracker_ = response['tracker']
+    node_address = response['node_address']
+    tracker.node_to_shard=tracker_['node_to_shard']
+    tracker.shard_to_node=tracker_['shard_to_node']
+    peer_insert(node_address)
 
+    node_to_shard = track['node_to_shard']
+    if SELF_KEY not in node_to_shard:
+        return "get new node info returned wihtout sending any shard"
+    shards = bchain.remove_multiple_shards(node_to_shard[SELF_KEY], SHARD_SIZE)
+    print(send_shard_to(shards, node_address))
     return 'get new node info returned', 200
 
+def send_shard_to(shards, node_address):
+    chain_dump =[]
+    for b in shards:
+        chain_dump.append(b.__dict__)
+    data ={
+            'shard':chain_dump
+    }
+    response = requests.post(node_address+'sendshard', json=data, headers={'Content-Type': "application/json"})
+    if response.status_code == 200:
+        print(response.content)
+    return 'send_shard returned'
 
-@app.route('/add_block', methods=['POST'])
-def verify_and_add_block():
-    block_data = request.get_json()
-    block = blockchain.Block(block_data["index"],
-                             block_data["transactions"],
-                             block_data["timestamp"],
-                             block_data["previous_hash"],
-                             )
-
-    added = chain.add_block(block)
-
-    if not added:
-        return "The block was discarded by the node", 400
-
-    return "Block added to the chain", 201
-
+@app.route('/sendshard',methods=["POST"])
+def recv_shard():
+    global IS_SHARDED
+    global bchain
+    IS_SHARDED = True
+    print('recv shard entered')
+    data = request.get_json()
+    shard = data['shard']
+    generated_shard=create_chain_from_dump(shard)
+    generated_shard.chain.pop(0)
+    bchain.chain.extend(generated_shard.chain)
+    return 'recv shard returned',200
 
 def create_chain_from_dump(chain_dump):
     generated_blockchain = blockchain.Blockchain()
     # generated_blockchain.create_genesis_block()
     for idx, block_data in enumerate(chain_dump):
-        if idx == 0:
+        if idx == 0 and not IS_SHARDED:
             continue  # skip genesis block
         block = blockchain.Block(block_data["index"],
                                  block_data["transactions"],
                                  block_data["timestamp"],
                                  block_data["previous_hash"])
         block.hash = block_data['hash']
-        added = generated_blockchain.add_block(block)
+        if IS_SHARDED:
+            #integraty check is not performed
+
+            added= generated_blockchain.add_block_on_shard(block,'')
+        else:
+            added = generated_blockchain.add_block(block)
 
         if not added:
             raise Exception("The chain dump is tampered!!")
@@ -236,7 +324,7 @@ def create_chain_from_dump(chain_dump):
 @app.route("/shardinit", methods=['GET'])
 def init_shard():
     global LAST_SHARD
-    print('chain len: ', len(chain.chain))
+    print('chain len: ', len(bchain.chain))
     global peers
     global OVERLAPPING
     global IS_SHARDED
@@ -245,7 +333,7 @@ def init_shard():
 
     IS_SHARDED = True
     print(peers)
-    num_of_shard = (len(chain.chain) - LAST_CHAIN_SIZE) / SHARD_SIZE
+    num_of_shard = (len(bchain.chain) - LAST_CHAIN_SIZE) / SHARD_SIZE
     print('num of shard: ', num_of_shard)
     i = 1
     # make this global to turn around lapping
@@ -281,15 +369,15 @@ def apply_sharding(sharding_update):
     global SHARD_SIZE
     global LAST_CHAIN_SIZE
     shards = sharding_update[SELF_KEY]
-    temp = chain.chain[:LAST_CHAIN_SIZE]
+    temp = bchain.chain[:LAST_CHAIN_SIZE]
     for i in shards:
         end = SHARD_SIZE * i
 
-        end_index = LAST_CHAIN_SIZE + (end - chain.chain[LAST_CHAIN_SIZE].index) + 1
+        end_index = LAST_CHAIN_SIZE + (end - bchain.chain[LAST_CHAIN_SIZE].index) + 1
         start_index = end_index - SHARD_SIZE
-        temp.extend(chain.chain[start_index:end_index])
-    chain.chain = temp
-    LAST_CHAIN_SIZE = len(chain.chain)
+        temp.extend(bchain.chain[start_index:end_index])
+    bchain.chain = temp
+    LAST_CHAIN_SIZE = len(bchain.chain)
     return "sharding done, ok"
 
 
@@ -317,18 +405,23 @@ def shard_info():
     apply_sharding(node_to_shard)
     return "successfully got it", 200
 
+def tx_in_shard_by_sender(sender, shard):
+    tx_list = []
+    for block in bchain.chain:
+        if math.ceil(block.index / SHARD_SIZE) == int(shard):
+            for tx in block.transactions:
+                if tx['sender'] == sender:
+                    tx['b_idx'] = block.index
+                    tx_list.append(tx)
+    return tx_list
 
 @app.route('/txbysender', methods=['POST'])
 def txbysender():
     data = request.get_json()
-    print(data)
     sender = data['sender']
-    tx_list = []
-    for block in chain.chain:
-        for tx in block.transactions:
-            if tx['sender'] == sender:
-                tx_list.append(tx)
+    shard = data['shard']
 
+    tx_list = tx_in_shard_by_sender(sender, shard)
     return json.dumps({'tx': tx_list})
 
 
@@ -337,15 +430,16 @@ def wholeshardquery():
     data = request.get_json()
     sender = data['sender']
     tx = []
-    for peer in peers:
-        if tracker.node_to_shard[peer]:
-            print('asking node: ', peer)
+    for shard in tracker.shard_to_node:
+        peer = tracker.shard_to_node[shard][0]
+        if (peer != SELF_KEY) and tracker.node_to_shard[peer]:
+            data['shard'] = shard
             response = requests.post(peer + "txbysender", json=data, headers={"Content-Type": 'application/json'})
             tx.extend(response.json()['tx'])
+        else:
+            tx.extend(tx_in_shard_by_sender(sender, shard))
 
-    for t in tx:
-        print(json.dumps(t, indent=4))
-    return "whole shard function returned"
+    return json.dumps(tx),200
 
 
 @app.route("/query", methods=['POST'])
@@ -359,14 +453,25 @@ def printWorldstate():
     worldstate.print()
     return "print worldstate"
 
+@app.route('/printtracker',methods=['GET'])
+def print_tracker():
+    tracker.print()
+    return 'print tracker'
 
 @app.route("/printchain", methods=['GET'])
 def printchain():
-    for block in chain.chain:
+    for block in bchain.chain:
         print(json.dumps(block.__dict__, indent=4))
 
     return "print chain"
 
+def peer_broadcast(url, data, exclude, header={"Content-Type": 'application/json'}):
+    for peer in peers:
+        if peer not in exclude:
+            response = requests.post(peer+url, json = data, headers=header)
+            print(response.content)
+
+    return "peer broadcast returned"
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
