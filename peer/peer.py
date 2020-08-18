@@ -2,6 +2,7 @@ import requests
 import json
 import time
 import sys
+import socket 
 import math
 from flask import Flask, jsonify, request
 app = Flask(__name__)
@@ -473,6 +474,23 @@ def peer_broadcast(url, data, exclude, header={"Content-Type": 'application/json
 
     return "peer broadcast returned"
 
+@app.route("/", methods=['GET'])
+def home():
+    print("tested ")
+    return "<html>\
+                <body><h1> Welcome to Homepage</h1></body>\
+            </html>"
+
+def get_host_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        print("can not get host name and ip address")
+
 if __name__ == '__main__':
     from argparse import ArgumentParser
 
@@ -486,6 +504,7 @@ if __name__ == '__main__':
     # NODE_NUMBER = args.node
     IS_ANCHOR = args.anchor
     SELF_KEY = "http://localhost:" + repr(NODE_NUMBER) + "/"
-    print(get_my_key())
+    host_ip =  get_host_ip()
+    print(host_ip)
     peer_insert(get_my_key())
-    app.run(host='127.0.0.1', port=port, debug=True)
+    app.run(host=host_ip, port=port, debug=True)
