@@ -473,7 +473,7 @@ def printpeer():
         print(p)
 
     return "peer list is printed"
-    
+
 def peer_broadcast(url, data, exclude, header={"Content-Type": 'application/json'}):
     for peer in peers:
         if peer not in exclude:
@@ -498,6 +498,17 @@ def get_host_ip():
         return ip
     except:
         print("can not get host name and ip address")
+
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+
+@app.route('/shutdown', methods=['GET'])
+def shutdown():
+    shutdown_server()
+    return 'Server shutting down...'
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
