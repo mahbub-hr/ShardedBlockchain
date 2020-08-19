@@ -233,6 +233,7 @@ def register_with_existing_node():
 
     if response.status_code == 200:
         global bchain
+        #this is in master
         global peers
         global worldstate
         global LAST_INDEX
@@ -466,6 +467,13 @@ def printchain():
 
     return "print chain"
 
+@app.route("/printpeer", methods=["GET"])
+def printpeer():
+    for p in peers:
+        print(p)
+
+    return "peer list is printed"
+    
 def peer_broadcast(url, data, exclude, header={"Content-Type": 'application/json'}):
     for peer in peers:
         if peer not in exclude:
