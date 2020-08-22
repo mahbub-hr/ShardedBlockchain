@@ -522,8 +522,8 @@ if __name__ == '__main__':
     NODE_NUMBER = port
     # NODE_NUMBER = args.node
     IS_ANCHOR = args.anchor
-    SELF_KEY = "http://localhost:" + repr(NODE_NUMBER) + "/"
     host_ip =  get_host_ip()
-    print(host_ip)
+    SELF_KEY = "http://" + host_ip+ ":" + repr(port)+"/"
+    print(SELF_KEY)
     peer_insert(get_my_key())
     app.run(host=host_ip, port=port, debug=True)
