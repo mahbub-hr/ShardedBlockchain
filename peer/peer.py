@@ -29,6 +29,12 @@ PREV_HASH = bchain.chain[0].hash
 worldstate = blockchain.Worldstate()
 tracker = blockchain.ShardInfoTracker()
 
+waiting_block = ""
+waiting_block_hash = ""
+waiting_for_commit = ""
+correct_peers_list = []
+fault_tolerance = 0
+
 peers = []
 
 def initialize():
@@ -69,9 +75,12 @@ def peer_insert(p):
 
 
 def peer_update(peer):
+    global fault_tolerance
     for p in peer:
         if p not in peers:
             peers.append(p)
+
+    fault_tolerance = math.floor( (len(peers) - 1) /3 )
 
 
 def get_my_key():
@@ -124,8 +133,29 @@ def new_transaction():
 
     return 'block has been broadcasted', 201
 
-@app.route('/add_block', methods=['POST'])
+
 def verify_and_add_block():
+    """block_data = request.get_json()
+    block = blockchain.Block(block_data["index"],
+                             block_data["transactions"],
+                             block_data["timestamp"],
+                             block_data["previous_hash"],
+                             )
+    block.hash = block_data['hash']"""
+    block = waiting_block
+    block.hash = waiting_block_hash
+    added = bchain.add_block_on_shard(block,"")
+    if not added:
+        return "The block was discarded by the node", 400
+    worldstate.update_with_block(block)
+    return "Block added to the chain", 201
+
+
+@app.route('/add_block', methods=['POST'])
+def pBFT_prepare():
+    global waiting_block
+    global waiting_block_hash
+    global waiting_for_commit
     block_data = request.get_json()
     block = blockchain.Block(block_data["index"],
                              block_data["transactions"],
@@ -133,11 +163,33 @@ def verify_and_add_block():
                              block_data["previous_hash"],
                              )
     block.hash = block_data['hash']
-    added = bchain.add_block_on_shard(block,"")
-    if not added:
-        return "The block was discarded by the node", 400
-    worldstate.update_with_block(block)
-    return "Block added to the chain", 201
+    waiting_block_hash = block.hash
+    waiting_block = block
+    waiting_for_commit = True
+    hash_data = {"hash_received_by_sender": block.hash, "sender": get_my_key()}
+    peer_broadcast("consensus", hash_data, [])
+    return 'block hash has been broadcasted for pBFT', 201
+
+@app.route('/consensus', methods=['POST'])
+def pBFT_commit():
+    global correct_peers_list
+    global fault_tolerance
+    received_data = request.get_json()
+    sender = received_data["sender"]
+    hash_computed_by_sender = received_data["hash_received_by_sender"]
+    if waiting_for_commit:
+        if hash_computed_by_sender == waiting_block_hash:
+            if sender not in correct_peers_list:
+                correct_peers_list.append(sender)
+        
+        required_replies = (2*fault_tolerance) + 1
+        if len(correct_peers_list) == required_replies:
+            verify_and_add_block()
+    
+    return "Reply received", 201
+
+
+
 
 @app.route('/chain', methods=['GET'])
 def full_chain():
