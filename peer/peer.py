@@ -116,7 +116,7 @@ def get_obj_size(obj):
     
 @app.route('/getsize', methods=['GET'])
 def getchainsize():
-    f = open("size.txt", 'a')
+    
     block_size = sys.getsizeof(bchain.chain[1])
     if SELF_KEY in tracker.node_to_shard:
         num_of_shard = len(tracker.node_to_shard[SELF_KEY])
@@ -126,10 +126,10 @@ def getchainsize():
        
 
     element = len(bchain.chain)
-    f.write(f'{SELF_KEY},{OVERLAPPING},{num_of_shard},{block_size},{element},{get_obj_size(bchain)}, {memory_usage_psutil()}\n')
+    f'{SELF_KEY},{OVERLAPPING},{num_of_shard},{block_size},{element},{get_obj_size(bchain)}, {memory_usage_psutil()}\n'
 
-    f.close()
-    return 'get size function returned', 200
+   
+    return json.dumps(f'{SELF_KEY},{OVERLAPPING},{num_of_shard},{block_size},{element},{get_obj_size(bchain)}, {memory_usage_psutil()}\n'), 200
 
 #act as a orderer
 @app.route('/transactions/new', methods=['POST'])

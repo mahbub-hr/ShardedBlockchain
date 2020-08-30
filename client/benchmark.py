@@ -9,15 +9,15 @@ from time import sleep
 import math
 
 CONNECTED_NODE_ADDRESS = "http://192.168.0."
-NODE = list()
+peer = list()
 
 def readPeerList(): 
     with open('peer_list.txt','r') as file:
         for f in file:
             str = f.split('\n')
             str= str[0]
-            NODE.append(str)
-    print(NODE)
+            peer.append(str)
+    print(peer)
 
 
 def new_transaction(addr, sender, recipient, amount):
@@ -103,64 +103,43 @@ def shardedchain(addr):
     print(response.content)
     
 def getsize(addr):
+
     url = f'{addr}/getsize'
     response= requests.get(url)
     print(response.content)
+    with open('size.txt','a') as f:
+        f.write(json.loads(response.content))
+    return
 
 def shutdown(addr):
     url = f"{addr}/shutdown"
     response = requests.get(url)
     print(response.content)
 
-    
+readPeerList()
 
 
 # %%
 #
 for i in range(4):
-   new_transaction('http://192.168.43.96:5000','A','B',5)
+   new_transaction(peer[0],'A','B',5)
 
-getsize('http://192.168.43.96:5000')
-
-
-# %%
-print_tracker(5000)
-print_tracker(5001)
-print_tracker(5002)
-print_tracker(5003)
-
-
-# %%
-printchain(5000)
-printchain(5001)
-printchain(5002)
-printchain(5003)
-
-
-# %%
-#
-print_worldstate(5000)
-print_worldstate(5001)
-print_worldstate(5002)
-print_worldstate(5003)
+getsize(peer[0])
 
 
 # %%
 #benchmark chain size estimation
-NODE.clear()
-readPeerList()
-peer = NODE
 m = len(peer)+1
 for n in range(1,m):
     for i in range(8):
-        new_transaction("http://192.168.0.100:5000", 'A','B',1)
+        new_transaction(peer[0], 'A','B',1)
 
     for p in peer:
-        if p != "http://192.168.0.100:5000":
-            register_to_anchor("http://192.168.0.100:5000",p)
+        if p != peer[0]:
+            register_to_anchor(peer[0],p)
 
     sleep(5)
-    shardinit("http://192.168.0.100:5000")
+    shardinit(peer[0])
     sleep(5)
     for p in peer: 
         getsize(p)
@@ -178,13 +157,13 @@ m = len(peer)+1
 
 for n in range(1,m):
     for i in range(400):
-        new_transaction(5000,'A','B',1)
+        new_transaction(peer[0],'A','B',1)
 
     for p in peer:
-        if p != 5000:
-            register_to_anchor(5000,p)
+        if p != peer[0]:
+            register_to_anchor(peer[0],p)
             
-    shardinit('http://192.168.43.96:5000')
+    shardinit(peer[0])
     sleep(2)
     
     for k in range(10):
