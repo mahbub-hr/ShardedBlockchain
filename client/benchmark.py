@@ -69,15 +69,15 @@ def querybalance(key,n):
     if response.status_code == 200:
         print(response.content)
 
-def wholeshardquery(key, n):
-    file = open("query_latency",'a')
-    url = "{}/wholeshardquery".format(NODE[0])
+def wholeshardquery(node, key, n):
+    file = open("query_latency.txt",'a')
+    url = f"{node}/wholeshardquery"
     data = {"sender":key}
     start = time.time()
     response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
     end = time.time()
     elapsed = end-start
-    file.write(f'{n} {elapsed}\n')
+    file.write(f'{node}, {n}, {elapsed}\n')
     file.close()
     #data = json.loads(response.content)
     #print(json.dumps(data, indent=4, sort_keys=True))
@@ -123,7 +123,7 @@ readPeerList()
 #
 for i in range(4):
    new_transaction(peer[0],'A','B',5)
-
+register_to_anchor(peer[0],peer[1])
 getsize(peer[0])
 
 
@@ -167,27 +167,28 @@ for n in range(1,m):
     sleep(2)
     
     for k in range(10):
-        wholeshardquery('A',n)
+        wholeshardquery(peer[0],'A',n)
     
     for p in peer:
         initialize(p,n+1)
+
     sleep(1)
     print("value of n: ",n)
 
 
 # %%
 for i in range(100):
-    new_transaction(5000,'A','B',1)
+    new_transaction(peer[0],'A','B',1)
 
-    for p in peer:
-        if p != 5000:
-            register_to_anchor(5000,p)
-            
-    shardinit('http://192.168.43.96:5000')
-    sleep(2)
-    
-    for k in range(10):
-        wholeshardquery('A',n)
-    
+for p in peer:
+    if p != peer[0]:
+        register_to_anchor(peer[0],p)
+        
+shardinit(peer[0])
+sleep(2)
+
+for k in range(10):
+    wholeshardquery(peer[1],'A',n)
+
 
 
