@@ -124,6 +124,7 @@ readPeerList()
 #
 for i in range(4):
    new_transaction(peer[0],'A','B',5)
+register_to_anchor(peer[0], peer[1])
 getsize(peer[0], 1, 4)
 
 
