@@ -5,6 +5,7 @@ import sys
 import socket 
 import math
 import gc
+import psutil
 import os
 from flask import Flask, jsonify, request
 app = Flask(__name__)
@@ -85,9 +86,9 @@ def get_my_key():
 @app.route('/ps_util', methods=['GET'])
 def memory_usage_psutil():
     # return the memory usage in MB
-    import psutil
+    
     process = psutil.Process(os.getpid())
-    mem = process.memory_info()[0] 
+    mem = (process.memory_info()[0])/float(2**20) 
     return mem
 
 def get_obj_size(obj):
@@ -126,9 +127,7 @@ def getchainsize():
        
 
     element = len(bchain.chain)
-    f'{SELF_KEY},{OVERLAPPING},{num_of_shard},{block_size},{element},{get_obj_size(bchain)}, {memory_usage_psutil()}\n'
-
-   
+    
     return json.dumps(f'{SELF_KEY},{OVERLAPPING},{num_of_shard},{block_size},{element},{get_obj_size(bchain)}, {memory_usage_psutil()}\n'), 200
 
 #act as a orderer
@@ -533,6 +532,12 @@ def get_host_ip():
     except:
         print("can not get host name and ip address")
 
+def get_ext_ip():
+    ip = requests.get('https://api.ipify.org').text
+    ip = 'http://'+ip    
+    print(f'My public IP address is: {ip}')
+    return ip
+
 def shutdown_server():
     func = request.environ.get('werkzeug.server.shutdown')
     if func is None:
@@ -557,6 +562,7 @@ if __name__ == '__main__':
     # NODE_NUMBER = args.node
     IS_ANCHOR = args.anchor
     host_ip =  get_host_ip()
+    get_ext_ip()
     SELF_KEY = "http://" + host_ip+ ":" + repr(port)+"/"
     print(SELF_KEY)
     peer_insert(get_my_key())

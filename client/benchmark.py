@@ -7,6 +7,7 @@ import json
 import time
 from time import sleep
 import math
+import os
 
 CONNECTED_NODE_ADDRESS = "http://192.168.0."
 peer = list()
@@ -56,9 +57,9 @@ def register_to_anchor(anchor, node):
         print(response.status_code)
 
 
-def querybalance(key,n):
+def querybalance(node, key,n):
     file = open("query_latency",'a')
-    url = "{}/query".format(NODE[0])
+    url = f"{node}/query"
     data = {"key":key}
     start = time.time()
     response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
@@ -102,13 +103,13 @@ def shardedchain(addr):
     response = requests.get(url)
     print(response.content)
     
-def getsize(addr):
+def getsize(addr, m, k):
 
     url = f'{addr}/getsize'
     response= requests.get(url)
     print(response.content)
     with open('size.txt','a') as f:
-        f.write(json.loads(response.content))
+        f.write(f'{k},{m-1},{json.loads(response.content)}')
     return
 
 def shutdown(addr):
@@ -123,32 +124,34 @@ readPeerList()
 #
 for i in range(4):
    new_transaction(peer[0],'A','B',5)
-register_to_anchor(peer[0],peer[1])
-getsize(peer[0])
+getsize(peer[0], 1, 4)
 
 
 # %%
 #benchmark chain size estimation
-m = len(peer)+1
-for n in range(1,m):
-    for i in range(8):
-        new_transaction(peer[0], 'A','B',1)
+number_of_node = len(peer)+1
+k = 50
+while k <=200:
+    for m in range(5, number_of_node):
+        for n in range(1,m):
 
-    for p in peer:
-        if p != peer[0]:
-            register_to_anchor(peer[0],p)
+            for p in range(1,m):
+                initialize(peer[p-1],n)
 
-    sleep(5)
-    shardinit(peer[0])
-    sleep(5)
-    for p in peer: 
-        getsize(p)
-        sleep(2)
+            for i in range(k):
+                new_transaction(peer[0], 'A','B',1)
 
+            for p in range(2,m):
+                if peer[p] != peer[0]:
+                    register_to_anchor(peer[0],peer[p-1])
+            
+            shardinit(peer[0])
+            
+            for p in range(1,m): 
+                getsize(peer[p-1], m, k)
     
-    for p in peer:
-        initialize(p,n+1)
-    sleep(1)
+    k= k+50
+    
 
 
 # %%
