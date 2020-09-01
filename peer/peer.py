@@ -167,15 +167,17 @@ def new_transaction():
         block.hash = block.compute_hash()
         PREV_HASH = block.hash
         peer_broadcast("add_block", block.__dict__, [])
-        LAST_INDEX += 1
+        broadcast_index = LAST_INDEX
+        #LAST_INDEX += 1
         bchain.current_transactions=[]
-        print('block has been broadcasted')
+        print('block has been broadcasted, tx = ' + str(broadcast_index))
 
     return 'block has been broadcasted', 201
 
 
 def verify_and_add_block(block_index):
     global waiting_block
+    global LAST_INDEX
     """block_data = request.get_json()
     block = blockchain.Block(block_data["index"],
                              block_data["transactions"],
@@ -196,6 +198,7 @@ def verify_and_add_block(block_index):
             waiting_block.remove(b)
     
     added = bchain.add_block_on_shard(block,"")
+    LAST_INDEX += 1
     if not added:
         return "The block was discarded by the node", 400
 
@@ -257,7 +260,9 @@ def pBFT_commit():
     my_hash = ""
 
     if int(block_index) not in added_blocks:
+        print("inside 1st if")
         if int(block_index) in new_block_found_from_orderer:
+            print("inside 2nd if")
             newentry = [block_index, sender, hash_computed_by_sender]
             yet_to_be_added_blocks.append(newentry)
             
