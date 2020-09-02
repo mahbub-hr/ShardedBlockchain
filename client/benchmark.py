@@ -139,13 +139,13 @@ readConfig()
 # %%
 #benchmark chain size estimation
 number_of_node = len(peer)+1
-k = 50
+k = 100
 throughput = open("throughput.txt",'w') 
 history_query = open("history_query_latency.txt",'w')
 state_query = open("state_query_latency.txt",'w')
 
-while k <=100:
-    for m in range(3, number_of_node):
+while k <=300:
+    for m in range(4, number_of_node):
         for n in range(1,m+1):
 
             for p in range(0,m):
@@ -154,7 +154,7 @@ while k <=100:
             start = time.time()
             for i in range(k):
                 rand_account = random.sample(range(0,3),2)
-                balance = random.randint(0,100000)
+                balance = random.randint(0,1000)
                 new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
             end = time.time()
             throughput.write(f"{k}, {m}, {n}, {round(end-start,5)}\n")
