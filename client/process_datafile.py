@@ -1,7 +1,7 @@
 import json
 import collections
 from pathlib import Path
-
+import shutil
 k={}
 n={}
 total={}
@@ -52,7 +52,9 @@ for i in range(1,10):
 
 result+='\n'
 
-
+dirpath = Path("data")
+if dirpath.exists() and dirpath.is_dir():
+    shutil.rmtree(dirpath)
 Path("./data/").mkdir(parents=True, exist_ok=True)
 
 print("generating result...")

@@ -63,8 +63,8 @@ def register_to_anchor(anchor, node):
         print(response.status_code)
 
 
-def querybalance(k, m, n):
-    file = open("state_query_latency.txt",'a')
+def querybalance(file, k, m, n):
+    
     elapsed = 0.0
     for i in range(0,3):
         node = random.randint(0,len(peer)-1)
@@ -76,13 +76,13 @@ def querybalance(k, m, n):
         end = time.time()
         elapsed += end-start
 
-    file.write(f'{k}, {m}, {n} {round(elapsed/3.0,4)}\n')
-    file.close()
+    file.write(f'{k}, {m}, {n} {round(elapsed/3.0,5)}\n')
+   
     if response.status_code == 200:
         print(response.content)
 
-def wholeshardquery(k, m, n):
-    file = open("history_query_latency.txt",'a')
+def wholeshardquery(file, k, m, n):
+    
     elapsed = 0.0
     avg_query=0.0
     for i in range(0,3):
@@ -100,8 +100,8 @@ def wholeshardquery(k, m, n):
         time_stats = data['time_stats']
         avg_query += time_stats['total']
     
-    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,4)} {round(avg_query/3.0,4)}\n')
-    file.close()
+    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,5)} {round(avg_query/3.0,5)}\n')
+    
     
     return
 
@@ -140,7 +140,10 @@ readConfig()
 #benchmark chain size estimation
 number_of_node = len(peer)+1
 k = 50
-throughput = open("throughput.txt",'a') 
+throughput = open("throughput.txt",'w') 
+history_query = open("history_query_latency.txt",'w')
+state_query = open("state_query_latency.txt",'w')
+
 while k <=100:
     for m in range(3, number_of_node):
         for n in range(1,m+1):
@@ -154,7 +157,7 @@ while k <=100:
                 balance = random.randint(0,100000)
                 new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
             end = time.time()
-            throughput.write(f"{k}, {m}, {n}, {end-start}\n")
+            throughput.write(f"{k}, {m}, {n}, {round(end-start,5)}\n")
             for p in range(1,m):
                 if peer[p] != peer[anchor]:
                     register_to_anchor(peer[anchor],peer[p])
@@ -164,11 +167,13 @@ while k <=100:
             for p in range(0,m): 
                 getsize(peer[p], m, k)
             
-            wholeshardquery(k, m, n)
-            querybalance(k, m, n)
+            wholeshardquery(history_query,k, m, n)
+            querybalance(state_query,k, m, n)
     
     k= k+50
 
 throughput.close()
+history_query.close()
+state_query.close()
 print("benchmarking finished")
 # %%
