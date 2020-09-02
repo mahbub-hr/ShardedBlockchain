@@ -1,4 +1,7 @@
 import json
+import collections
+from pathlib import Path
+
 k={}
 n={}
 total={}
@@ -49,7 +52,8 @@ for i in range(1,10):
 
 result+='\n'
 
-import collections
+
+Path("./data/").mkdir(parents=True, exist_ok=True)
 
 print("generating result...")
 for x in k:
@@ -64,7 +68,7 @@ for x in k:
             eta = float(max_total)/second_dict[n]
             result = result + '{:6}'.format(round(eta,2))
         result+='\n'
-    with open('size_'+x,'w') as f:
+    with open('data/size_'+x,'w') as f:
         f.write(result)
     result = ""
     result = 'mn'
