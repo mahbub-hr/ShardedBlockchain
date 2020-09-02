@@ -139,13 +139,17 @@ readConfig()
 # %%
 #benchmark chain size estimation
 number_of_node = len(peer)+1
-k = 100
-throughput = open("throughput.txt",'w') 
-history_query = open("history_query_latency.txt",'w')
-state_query = open("state_query_latency.txt",'w')
+k = 150
+throughput = open("throughput.txt",'a') 
+history_query = open("history_query_latency.txt",'a')
+state_query = open("state_query_latency.txt",'a')
 
 while k <=300:
-    for m in range(4, number_of_node):
+    if k == 150:
+        m_start =8
+    else :
+        m_start =4
+    for m in range(m_start, number_of_node):
         for n in range(1,m+1):
 
             for p in range(0,m):
@@ -172,6 +176,7 @@ while k <=300:
     
     k= k+50
 
+throughput.write("...........Finished ........")
 throughput.close()
 history_query.close()
 state_query.close()
