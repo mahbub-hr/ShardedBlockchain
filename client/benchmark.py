@@ -96,7 +96,7 @@ def wholeshardquery(k, m, n):
         end = time.time()
         elapsed = elapsed + end-start
 
-        data = json.loads(response)
+        data = json.loads(response.content)
         time_stats = data['time_stats']
         avg_query += time_stats['total']
     
