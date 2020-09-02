@@ -170,4 +170,5 @@ while k <=100:
     k= k+50
 
 throughput.close()
+print("benchmarking finished")
 # %%
