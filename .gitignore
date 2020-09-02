@@ -2,3 +2,5 @@
 *.txt
 client/*.txt
 client/data.bak
+client/data/*
+client/peer_list.txt
