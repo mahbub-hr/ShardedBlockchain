@@ -8,10 +8,11 @@ import time
 from time import sleep
 import math
 import os
+from pathlib import Path
 
 CONNECTED_NODE_ADDRESS = "http://192.168.0."
 peer = list()
-
+anchor = 0
 def readPeerList(): 
     with open('peer_list.txt','r') as file:
         for f in file:
@@ -109,7 +110,7 @@ def getsize(addr, m, k):
     response= requests.get(url)
     print(response.content)
     with open('size.txt','a') as f:
-        f.write(f'{k},{m-1},{json.loads(response.content)}')
+        f.write(f'{k},{m},{json.loads(response.content)}')
     return
 
 def shutdown(addr):
@@ -133,23 +134,23 @@ getsize(peer[0], 1, 4)
 number_of_node = len(peer)+1
 k = 50
 while k <=200:
-    for m in range(5, number_of_node):
-        for n in range(1,m):
+    for m in range(1, number_of_node):
+        for n in range(1,m+1):
 
-            for p in range(1,m):
-                initialize(peer[p-1],n)
+            for p in range(0,m):
+                initialize(peer[p],n)
 
             for i in range(k):
-                new_transaction(peer[0], 'A','B',1)
+                new_transaction(peer[anchor], 'A','B',1)
 
-            for p in range(2,m):
-                if peer[p] != peer[0]:
-                    register_to_anchor(peer[0],peer[p-1])
+            for p in range(1,m):
+                if peer[p] != peer[anchor]:
+                    register_to_anchor(peer[anchor],peer[p])
             
-            shardinit(peer[0])
+            shardinit(peer[anchor])
             
-            for p in range(1,m): 
-                getsize(peer[p-1], m, k)
+            for p in range(0,m): 
+                getsize(peer[p], m, k)
     
     k= k+50
     
