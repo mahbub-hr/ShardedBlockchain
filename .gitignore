@@ -1,3 +1,4 @@
 *.pyc
 *.txt
 client/*.txt
+client/data.bak

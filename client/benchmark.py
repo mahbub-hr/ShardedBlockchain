@@ -8,7 +8,7 @@ import time
 from time import sleep
 import math
 import os
-from pathlib import Path
+
 
 CONNECTED_NODE_ADDRESS = "http://192.168.0."
 peer = list()
