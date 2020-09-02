@@ -55,17 +55,24 @@ class Worldstate:
 
     def update(self, sender, receiver, amount):
         # need a check for double spending
+        if self.worldstate[sender] < amount:
+            return False
+
         self.worldstate[sender] = self.worldstate[sender] - amount
         self.worldstate[receiver] = self.worldstate[receiver] + amount
+        #return a list of valid and invalid transactions
         return True
     def update_with_block(self,block):
-        prev = self.worldstate
+        update_log = {}
+        update_log['valid'] = []
+        update_log['invalid'] = []
+        
         for tx in block.transactions:
             ret=self.update(tx['sender'], tx['recipient'], tx['amount'])
             if not ret:
-                self.worldstate = prev
-                return False
-        return True
+                update_log['invalid'].append(tx)
+            update_log['valid'].append(tx)
+        return update_log
 
     def get(self, key):
         return self.worldstate[key]

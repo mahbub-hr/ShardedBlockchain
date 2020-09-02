@@ -205,9 +205,9 @@ def verify_and_add_block(block_index):
     #print(block)
     
     added_blocks.append(int(block_index))
-    worldstate.update_with_block(block)
+    update_log = worldstate.update_with_block(block)
 
-    return "Block added to the chain", 201
+    return json.dumps(update_log), 201
 
 
 @app.route('/add_block', methods=['POST'])
@@ -242,6 +242,7 @@ def pBFT_prepare():
         verify_and_add_block(int(block_data["index"]))
 
     return 'block hash has been broadcasted for pBFT', 201
+
 
 @app.route('/consensus', methods=['POST'])
 def pBFT_commit():
@@ -596,16 +597,38 @@ def wholeshardquery():
     data = request.get_json()
     sender = data['sender']
     tx = []
+    time_stats = {}
+    start = time.time()
+
     for shard in tracker.shard_to_node:
         peer = tracker.shard_to_node[shard][0]
+
         if (peer != SELF_KEY) and tracker.node_to_shard[peer]:
             data['shard'] = shard
+            s = time.time()
             response = requests.post(peer + "txbysender", json=data, headers={"Content-Type": 'application/json'})
+            e = time.time()
             tx.extend(response.json()['tx'])
         else:
+            s = time.time()
             tx.extend(tx_in_shard_by_sender(sender, shard))
+            e = time.time()
+        
+        stats ={}
+        stats['peer'] = peer
+        stats['time'] = e - s
+        time_stats[shard] = stats
 
-    return json.dumps(tx),200
+    end = time.time()
+    total_elapsed = end-start
+
+    time_stats['total'] = total_elapsed
+    response= {
+                "tx":tx,
+                "time_stats":time_stats
+                }
+
+    return json.dumps(response),200
 
 
 @app.route("/query", methods=['POST'])
