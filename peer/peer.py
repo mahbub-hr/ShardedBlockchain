@@ -34,6 +34,16 @@ tracker = blockchain.ShardInfoTracker()
 
 peers = []
 
+
+# pBFT global variables
+added_blocks = [] #entries are int (block index)
+yet_to_be_added_blocks = [] #list of metadata from peers
+new_block_found_from_peers = []
+new_block_found_from_orderer = [] #entries are int (block index)
+waiting_block = []
+fault_tolerance = 0
+
+
 def initialize():
 
     global  TX_PER_BLOCK, LAST_INDEX, IS_SHARDED,OVERLAPPING,LAST_SHARD,LAST_CHAIN_SIZE,x,PREV_HASH,peers
@@ -65,16 +75,22 @@ def setoverlap():
     return 'setoverlap returned',200
 
 def peer_insert(p):
+    global fault_tolerance
     if p not in peers:
         peers.append(p)
     else:
         print(f"{p} already exists")
+    
+    fault_tolerance = math.floor( (len(peers) - 1) /3 )
 
 
 def peer_update(peer):
+    global fault_tolerance
     for p in peer:
         if p not in peers:
             peers.append(p)
+
+    fault_tolerance = math.floor( (len(peers) - 1) /3 )
 
 
 def get_my_key():
@@ -151,14 +167,52 @@ def new_transaction():
         block.hash = block.compute_hash()
         PREV_HASH = block.hash
         peer_broadcast("add_block", block.__dict__, [])
-        LAST_INDEX += 1
+        broadcast_index = LAST_INDEX
+        #LAST_INDEX += 1
         bchain.current_transactions=[]
-        print('block has been broadcasted')
+        print('block has been broadcasted, tx = ' + str(broadcast_index))
 
     return 'block has been broadcasted', 201
 
+
+def verify_and_add_block(block_index):
+    global waiting_block
+    global LAST_INDEX
+    """block_data = request.get_json()
+    block = blockchain.Block(block_data["index"],
+                             block_data["transactions"],
+                             block_data["timestamp"],
+                             block_data["previous_hash"],
+                             )
+    block.hash = block_data['hash']"""
+    block = blockchain.Block
+    for b in waiting_block:
+        if int(b["index"]) == int(block_index):
+            block = blockchain.Block(
+                b["index"],
+                b["transactions"],
+                b["timestamp"],
+                b["previous_hash"],
+            )
+            block.hash = b['hash']
+            waiting_block.remove(b)
+    
+    added = bchain.add_block_on_shard(block,"")
+    LAST_INDEX += 1
+    if not added:
+        return "The block was discarded by the node", 400
+
+    #print(block)
+    
+    added_blocks.append(int(block_index))
+    worldstate.update_with_block(block)
+
+    return "Block added to the chain", 201
+
+
 @app.route('/add_block', methods=['POST'])
-def verify_and_add_block():
+def pBFT_prepare():
+    global waiting_block
     block_data = request.get_json()
     block = blockchain.Block(block_data["index"],
                              block_data["transactions"],
@@ -166,11 +220,73 @@ def verify_and_add_block():
                              block_data["previous_hash"],
                              )
     block.hash = block_data['hash']
-    added = bchain.add_block_on_shard(block,"")
-    if not added:
-        return "The block was discarded by the node", 400
-    worldstate.update_with_block(block)
-    return "Block added to the chain", 201
+    hash_data = {"index": block_data["index"], "hash_received_by_sender": block.hash, "sender": SELF_KEY}
+    peer_broadcast("consensus", hash_data, {SELF_KEY})
+    
+    
+    newentry = [block_data["index"], SELF_KEY, block.hash]
+    yet_to_be_added_blocks.append(newentry)
+    new_block_found_from_orderer.append(int(block_data["index"]))
+    required_replies = (2*fault_tolerance) + 1
+    reply_found = 0
+    #print(block_data)
+    waiting_block.append(block_data)
+    
+    for correct_reply in yet_to_be_added_blocks:
+        if int(correct_reply[0]) == int(block_data["index"]):
+            if correct_reply[2] == block.hash:
+                reply_found = reply_found + 1
+    
+    if reply_found >= required_replies:
+        print("Block added stage 1")
+        verify_and_add_block(int(block_data["index"]))
+
+    return 'block hash has been broadcasted for pBFT', 201
+
+@app.route('/consensus', methods=['POST'])
+def pBFT_commit():
+    global fault_tolerance
+    global added_blocks
+    global yet_to_be_added_blocks
+    global new_block_found_from_orderer
+    received_data = request.get_json()
+    block_index = received_data["index"]
+    sender = received_data["sender"]
+    hash_computed_by_sender = received_data["hash_received_by_sender"]
+    
+
+    required_replies = (2*fault_tolerance) + 1
+    reply_found = 0
+    my_hash = ""
+
+    if int(block_index) not in added_blocks:
+        print("inside 1st if")
+        if int(block_index) in new_block_found_from_orderer:
+            print("inside 2nd if")
+            newentry = [block_index, sender, hash_computed_by_sender]
+            yet_to_be_added_blocks.append(newentry)
+            
+            for correct_reply in yet_to_be_added_blocks:
+                if int(correct_reply[0]) == int(block_index):
+                    if correct_reply[1] == SELF_KEY:
+                        my_hash = correct_reply[2]
+                        break
+            for correct_reply in yet_to_be_added_blocks:
+                if int(correct_reply[0]) == int(block_index):
+                    if correct_reply[2] == my_hash:
+                        reply_found = reply_found + 1
+            #new_block_found_from_peers.append(int(block_index))
+        else:
+            newentry = [int(block_index), sender, hash_computed_by_sender]
+            yet_to_be_added_blocks.append(newentry) 
+            return "reply received from peers but not yet from orderer, reply recorded", 200
+
+    if reply_found >= required_replies:
+        print("Block added stage 2")
+        verify_and_add_block(int(block_index))
+    
+    reply = "Reply received from " + SELF_KEY
+    return reply, 201
 
 @app.route('/chain', methods=['GET'])
 def full_chain():
@@ -235,16 +351,31 @@ def sharded_chain(node_address):
     }
     return json.dumps(response)
 
+@app.route('/printpeer')
+def showpeer():
+    global peers
+    print(peers)
+    return 'Printed', 200
+
+@app.route('/peer_update_on_registration', methods=['POST'])
+def reg_update():
+    updated_peerlist = request.get_json()["updated_peerlist"]
+    peer_update(updated_peerlist)
+    return "New Peer emerged, list updated", 200
 
 # endpoint to add new peers to the network.
 @app.route('/register_node', methods=['POST'])
 def register_new_peers():
     node_address = request.get_json()["node_address"]
+    data = {
+        'updated_peerlist': peers
+    }
     if not node_address:
         return "Invalid data", 400
 
     # Add the node to the peer list
     peer_insert(node_address)
+    peer_broadcast('peer_update_on_registration', data, {SELF_KEY, node_address})
     if IS_SHARDED:
         return sharded_chain(node_address)
     else:
@@ -563,7 +694,7 @@ if __name__ == '__main__':
     IS_ANCHOR = args.anchor
     host_ip =  get_host_ip()
     get_ext_ip()
-    SELF_KEY = "http://" + host_ip+ ":" + repr(port)+"/"
+    SELF_KEY = "http://" + host_ip + ":" + repr(port)+"/"
     print(SELF_KEY)
     peer_insert(get_my_key())
     app.run(host=host_ip, port=port, debug=True)
