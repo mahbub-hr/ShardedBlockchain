@@ -76,7 +76,7 @@ def querybalance(k, m, n):
         end = time.time()
         elapsed += end-start
 
-    file.write(f'{k}, {m}, {n} {elapsed/3.0}\n')
+    file.write(f'{k}, {m}, {n} {round(elapsed/3.0,4)}\n')
     file.close()
     if response.status_code == 200:
         print(response.content)
@@ -100,7 +100,7 @@ def wholeshardquery(k, m, n):
         time_stats = data['time_stats']
         avg_query += time_stats['total']
     
-    file.write(f'{k}, {m}, {n}, {elapsed}, {elapsed/3.0} {avg_query/3.0}\n')
+    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,4)} {round(avg_query/3.0,4)}\n')
     file.close()
     
     return
