@@ -1,2 +1,4 @@
 *.pyc
 *.txt
+peer/__pycache__/blockchain.cpython-37.pyc
+client/*.txt
