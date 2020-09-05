@@ -8,17 +8,23 @@ import time
 from time import sleep
 import math
 import os
+import random
+
 
 CONNECTED_NODE_ADDRESS = "http://192.168.0."
 peer = list()
-
-def readPeerList(): 
-    with open('peer_list.txt','r') as file:
-        for f in file:
-            str = f.split('\n')
-            str= str[0]
-            peer.append(str)
+account = list()
+anchor = 0
+def readConfig():
+    global peer
+    global account 
+    with open('config.json','r') as file:
+        config = json.load(file)
+    peer = config["peers"]
+    account = config["accounts"]
     print(peer)
+    print(account)
+    
 
 
 def new_transaction(addr, sender, recipient, amount):
@@ -57,31 +63,46 @@ def register_to_anchor(anchor, node):
         print(response.status_code)
 
 
-def querybalance(node, key,n):
-    file = open("query_latency",'a')
-    url = f"{node}/query"
-    data = {"key":key}
-    start = time.time()
-    response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
-    end = time.time()
-    elapsed = end-start
-    file.write(f'{n} {elapsed}\n')
-    file.close()
+def querybalance(file, k, m, n):
+    
+    elapsed = 0.0
+    for i in range(0,3):
+        node = random.randint(0,len(peer)-1)
+        key = account[random.randint(0,len(account)-1)]
+        url = f"{peer[node]}/query"
+        data = {"key":key}
+        start = time.time()
+        response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
+        end = time.time()
+        elapsed += end-start
+
+    file.write(f'{k}, {m}, {n} {round(elapsed/3.0,5)}\n')
+   
     if response.status_code == 200:
         print(response.content)
 
-def wholeshardquery(node, key, n):
-    file = open("query_latency.txt",'a')
-    url = f"{node}/wholeshardquery"
-    data = {"sender":key}
-    start = time.time()
-    response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
-    end = time.time()
-    elapsed = end-start
-    file.write(f'{node}, {n}, {elapsed}\n')
-    file.close()
-    #data = json.loads(response.content)
-    #print(json.dumps(data, indent=4, sort_keys=True))
+def wholeshardquery(file, k, m, n):
+    
+    elapsed = 0.0
+    avg_query=0.0
+    for i in range(0,3):
+        node = random.randint(0,len(peer)-1)
+        key = account[random.randint(0,len(account)-1)]
+
+        url = f"{peer[node]}/wholeshardquery"
+        data = {"sender":key}
+        start = time.time()
+        response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
+        end = time.time()
+        elapsed = elapsed + end-start
+
+        data = json.loads(response.content)
+        time_stats = data['time_stats']
+        avg_query += time_stats['total']
+    
+    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,5)} {round(avg_query/3.0,5)}\n')
+    
+    
     return
 
 def shardinit(addr):
@@ -109,90 +130,55 @@ def getsize(addr, m, k):
     response= requests.get(url)
     print(response.content)
     with open('size.txt','a') as f:
-        f.write(f'{k},{m-1},{json.loads(response.content)}')
+        f.write(f'{k},{m},{json.loads(response.content)}')
     return
 
-def shutdown(addr):
-    url = f"{addr}/shutdown"
-    response = requests.get(url)
-    print(response.content)
-
-readPeerList()
-
-
-# %%
-#
-for i in range(4):
-   new_transaction(peer[0],'A','B',5)
-register_to_anchor(peer[0], peer[1])
-getsize(peer[0], 1, 4)
+readConfig()
 
 
 # %%
 #benchmark chain size estimation
 number_of_node = len(peer)+1
-k = 50
-while k <=200:
-    for m in range(5, number_of_node):
-        for n in range(1,m):
+k = 150
+throughput = open("throughput.txt",'a') 
+history_query = open("history_query_latency.txt",'a')
+state_query = open("state_query_latency.txt",'a')
 
-            for p in range(1,m):
-                initialize(peer[p-1],n)
+while k <=300:
+    if k == 150:
+        m_start =8
+    else :
+        m_start =4
+    for m in range(m_start, number_of_node):
+        for n in range(1,m+1):
 
+            for p in range(0,m):
+                initialize(peer[p],n)
+
+            start = time.time()
             for i in range(k):
-                new_transaction(peer[0], 'A','B',1)
-
-            for p in range(2,m):
-                if peer[p] != peer[0]:
-                    register_to_anchor(peer[0],peer[p-1])
+                rand_account = random.sample(range(0,3),2)
+                balance = random.randint(0,1000)
+                new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+            end = time.time()
+            throughput.write(f"{k}, {m}, {n}, {round(end-start,5)}\n")
+            for p in range(1,m):
+                if peer[p] != peer[anchor]:
+                    register_to_anchor(peer[anchor],peer[p])
             
-            shardinit(peer[0])
+            shardinit(peer[anchor])
             
-            for p in range(1,m): 
-                getsize(peer[p-1], m, k)
+            for p in range(0,m): 
+                getsize(peer[p], m, k)
+            
+            wholeshardquery(history_query,k, m, n)
+            querybalance(state_query,k, m, n)
     
     k= k+50
-    
 
-
+throughput.write("...........Finished ........")
+throughput.close()
+history_query.close()
+state_query.close()
+print("benchmarking finished")
 # %%
-peer=list(range(5000,5015))
-m = len(peer)+1
-
-for n in range(1,m):
-    for i in range(400):
-        new_transaction(peer[0],'A','B',1)
-
-    for p in peer:
-        if p != peer[0]:
-            register_to_anchor(peer[0],p)
-            
-    shardinit(peer[0])
-    sleep(2)
-    
-    for k in range(10):
-        wholeshardquery(peer[0],'A',n)
-    
-    for p in peer:
-        initialize(p,n+1)
-
-    sleep(1)
-    print("value of n: ",n)
-
-
-# %%
-for i in range(100):
-    new_transaction(peer[0],'A','B',1)
-
-for p in peer:
-    if p != peer[0]:
-        register_to_anchor(peer[0],p)
-        
-shardinit(peer[0])
-sleep(2)
-
-for k in range(10):
-    wholeshardquery(peer[1],'A',n)
-
-
-
