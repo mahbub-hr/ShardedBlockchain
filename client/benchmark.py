@@ -76,7 +76,7 @@ def querybalance(file, k, m, n):
         end = time.time()
         elapsed += end-start
 
-    file.write(f'{k}, {m}, {n} {round(elapsed/3.0,5)}\n')
+    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,5)}\n')
    
     if response.status_code == 200:
         print(response.content)
