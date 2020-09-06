@@ -33,7 +33,7 @@ worldstate = blockchain.Worldstate()
 tracker = blockchain.ShardInfoTracker()
 
 peers = []
-
+temp_update_log = {}
 
 # pBFT global variables
 added_blocks = [] #entries are int (block index)
@@ -151,6 +151,8 @@ def getchainsize():
 def new_transaction():
     global LAST_INDEX
     global PREV_HASH
+    global temp_update_log
+    temp_update_log = {}
     values = request.get_json()
 
     # Check that the required fields are in the POST'ed data
@@ -172,7 +174,7 @@ def new_transaction():
         bchain.current_transactions=[]
         print('block has been broadcasted, tx = ' + str(broadcast_index))
 
-    return 'block has been broadcasted', 201
+    return json.dumps(temp_update_log), 201
 
 
 def verify_and_add_block(block_index):
@@ -207,12 +209,13 @@ def verify_and_add_block(block_index):
     added_blocks.append(int(block_index))
     update_log = worldstate.update_with_block(block)
 
-    return json.dumps(update_log), 201
+    return update_log, 201
 
 
 @app.route('/add_block', methods=['POST'])
 def pBFT_prepare():
     global waiting_block
+    global temp_update_log
     block_data = request.get_json()
     block = blockchain.Block(block_data["index"],
                              block_data["transactions"],
@@ -239,7 +242,7 @@ def pBFT_prepare():
     
     if reply_found >= required_replies:
         print("Block added stage 1")
-        verify_and_add_block(int(block_data["index"]))
+        temp_update_log = verify_and_add_block(int(block_data["index"]))
 
     return 'block hash has been broadcasted for pBFT', 201
 
@@ -250,6 +253,7 @@ def pBFT_commit():
     global added_blocks
     global yet_to_be_added_blocks
     global new_block_found_from_orderer
+    global temp_update_log
     received_data = request.get_json()
     block_index = received_data["index"]
     sender = received_data["sender"]
@@ -284,7 +288,8 @@ def pBFT_commit():
 
     if reply_found >= required_replies:
         print("Block added stage 2")
-        verify_and_add_block(int(block_index))
+        temp_update_log = verify_and_add_block(int(block_index))
+
     
     reply = "Reply received from " + SELF_KEY
     return reply, 201
