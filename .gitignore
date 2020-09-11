@@ -1,6 +1,7 @@
 *.pyc
 *.txt
 client/*.txt
+client/benchmark/data/*
 client/data.bak
 client/data/*
 client/peer_list.txt
