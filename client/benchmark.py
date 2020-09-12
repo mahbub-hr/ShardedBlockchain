@@ -67,7 +67,7 @@ def querybalance(file, k, m, n):
     
     elapsed = 0.0
     for i in range(0,3):
-        node = random.randint(0,len(peer)-1)
+        node = random.randint(0,3)
         key = account[random.randint(0,len(account)-1)]
         url = f"{peer[node]}/query"
         data = {"key":key}
@@ -86,7 +86,7 @@ def wholeshardquery(file, k, m, n):
     elapsed = 0.0
     avg_query=0.0
     for i in range(0,3):
-        node = random.randint(0,len(peer)-1)
+        node = random.randint(0,3)
         key = account[random.randint(0,len(account)-1)]
 
         url = f"{peer[node]}/wholeshardquery"
@@ -179,7 +179,6 @@ def latency_estimate():
                 for p in range(0,m):
                     initialize(peer[p],n)
 
-                start = time.time()
                 for i in range(k):
                     rand_account = random.sample(range(0,3),2)
                     balance = random.randint(0,1000)
