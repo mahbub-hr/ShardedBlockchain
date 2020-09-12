@@ -37,7 +37,7 @@ def new_transaction(addr, sender, recipient, amount):
 
     response = requests.post(new_tx_address, json=data, headers={'Content-type': 'application/json'})
     if response.status_code == 201:
-        print(response.content)
+        return response.content
 
 def initialize(addr, overlap):
     url = f"{addr}/setoverlap"
@@ -100,7 +100,7 @@ def wholeshardquery(file, k, m, n):
         time_stats = data['time_stats']
         avg_query += time_stats['total']
     
-    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,5)} {round(avg_query/3.0,5)}\n')
+    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,5)}, {round(avg_query/3.0,5)}\n')
     
     
     return
@@ -138,47 +138,103 @@ readConfig()
 
 # %%
 #benchmark chain size estimation
-number_of_node = len(peer)+1
-k = 150
-throughput = open("throughput.txt",'a') 
-history_query = open("history_query_latency.txt",'a')
-state_query = open("state_query_latency.txt",'a')
+def chain_size_estimate():
+    number_of_node = len(peer)+1
+    k = 100
+    while k <=300:
+        for m in range(4, number_of_node):
+            for n in range(1,m+1):
 
-while k <=300:
-    if k == 150:
-        m_start =8
-    else :
-        m_start =4
-    for m in range(m_start, number_of_node):
-        for n in range(1,m+1):
+                for p in range(0,m):
+                    initialize(peer[p],n)
 
-            for p in range(0,m):
-                initialize(peer[p],n)
+                for i in range(k):
+                    rand_account = random.sample(range(0,3),2)
+                    balance = random.randint(0,1000)
+                    new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+               
+                for p in range(1,m):
+                    if peer[p] != peer[anchor]:
+                        register_to_anchor(peer[anchor],peer[p])
+                
+                shardinit(peer[anchor])
+                
+                for p in range(0,m): 
+                    getsize(peer[p], m, k)
+        
+        k= k+50
 
-            start = time.time()
-            for i in range(k):
-                rand_account = random.sample(range(0,3),2)
-                balance = random.randint(0,1000)
-                new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
-            end = time.time()
-            throughput.write(f"{k}, {m}, {n}, {round(end-start,5)}\n")
-            for p in range(1,m):
-                if peer[p] != peer[anchor]:
-                    register_to_anchor(peer[anchor],peer[p])
-            
-            shardinit(peer[anchor])
-            
-            for p in range(0,m): 
-                getsize(peer[p], m, k)
-            
-            wholeshardquery(history_query,k, m, n)
-            querybalance(state_query,k, m, n)
-    
-    k= k+50
+#%%
+def latency_estimate():
+    number_of_node = len(peer)+1
+    k = 100
 
-throughput.write("...........Finished ........")
-throughput.close()
-history_query.close()
-state_query.close()
+    history_query = open("history_query_latency.txt",'a')
+    state_query = open("state_query_latency.txt",'a')
+
+    while k <=400:
+        for m in range(4, number_of_node):
+            for n in range(1,m+1):
+
+                for p in range(0,m):
+                    initialize(peer[p],n)
+
+                start = time.time()
+                for i in range(k):
+                    rand_account = random.sample(range(0,3),2)
+                    balance = random.randint(0,1000)
+                    new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+                
+                for p in range(1,m):
+                    if peer[p] != peer[anchor]:
+                        register_to_anchor(peer[anchor],peer[p])
+                
+                shardinit(peer[anchor])
+                
+                wholeshardquery(history_query,k, m, n)
+                querybalance(state_query,k, m, n)
+        
+        k= k+50    
+
+    history_query.close()
+    state_query.close()
+
+def throughput_estimate():
+    number_of_node = len(peer)+1
+    k = 100
+    throughput = open("throughput.txt",'a') 
+
+    while k <=400:
+        for m in range(4, number_of_node):
+            for n in range(1,m+1):
+
+                for p in range(0,m):
+                    initialize(peer[p],n)
+
+                for p in range(1,m):
+                    if peer[p] != peer[anchor]:
+                        register_to_anchor(peer[anchor],peer[p])
+                
+                total_valid = 0
+                start = time.time()
+                for i in range(k):
+                    rand_account = random.sample(range(0,3),2)
+                    balance = random.randint(0,1000)
+                    response = new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+                    update_log = json.loads(response)
+                    total_valid += len(update_log['valid'])
+                    if (i+1)%10 ==0:
+                        shardinit(anchor)
+
+                end = time.time()
+                throughput.write(f"{k}, {m}, {n}, {total_valid}, {round(end-start,5)}\n")
+        
+        k= k+50
+
+    throughput.write("...........Finished ........")
+    throughput.close()
+
+latency_estimate()
+throughput_estimate()
 print("benchmarking finished")
 # %%
