@@ -87,7 +87,8 @@ def wholeshardquery(file, k, m, n):
     avg_query=0.0
     for i in range(0,3):
         node = random.randint(0,3)
-        key = account[random.randint(0,len(account)-1)]
+        #key = account[random.randint(0,len(account)-1)]
+        key = "A"
 
         url = f"{peer[node]}/wholeshardquery"
         data = {"sender":key}
@@ -95,8 +96,8 @@ def wholeshardquery(file, k, m, n):
         response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
         end = time.time()
         elapsed = elapsed + end-start
-
         data = json.loads(response.content)
+        print(f"{peer[node]} : {json.dumps(data['time_stats'], indent =4)}")
         time_stats = data['time_stats']
         avg_query += time_stats['total']
     
@@ -133,8 +134,6 @@ def getsize(addr, m, k):
         f.write(f'{k},{m},{json.loads(response.content)}')
     return
 
-readConfig()
-
 
 # %%
 #benchmark chain size estimation
@@ -169,10 +168,10 @@ def latency_estimate():
     number_of_node = len(peer)+1
     k = 100
 
-    history_query = open("history_query_latency.txt",'a')
-    state_query = open("state_query_latency.txt",'a')
+    history_query = open("history_query_latency.txt",mode='a',buffering=1)
+    state_query = open("state_query_latency.txt",mode='a',buffering=1)
 
-    while k <=400:
+    while k <=300:
         for m in range(4, number_of_node):
             for n in range(1,m+1):
 
@@ -180,9 +179,8 @@ def latency_estimate():
                     initialize(peer[p],n)
 
                 for i in range(k):
-                    rand_account = random.sample(range(0,3),2)
                     balance = random.randint(0,1000)
-                    new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+                    new_transaction(peer[anchor], 'A',"B",balance)
                 
                 for p in range(1,m):
                     if peer[p] != peer[anchor]:
@@ -193,7 +191,7 @@ def latency_estimate():
                 wholeshardquery(history_query,k, m, n)
                 querybalance(state_query,k, m, n)
         
-        k= k+50    
+        k= k+50   
 
     history_query.close()
     state_query.close()
@@ -201,39 +199,37 @@ def latency_estimate():
 def throughput_estimate():
     number_of_node = len(peer)+1
     k = 100
-    throughput = open("throughput.txt",'a') 
+    throughput = open("throughput.txt", mode='a',buffering=1) 
 
-    while k <=400:
+    while k <=300:
         for m in range(4, number_of_node):
             for n in range(1,m+1):
 
                 for p in range(0,m):
                     initialize(peer[p],n)
-
-                for p in range(1,m):
-                    if peer[p] != peer[anchor]:
-                        register_to_anchor(peer[anchor],peer[p])
                 
-                total_valid = 0
                 start = time.time()
                 for i in range(k):
                     rand_account = random.sample(range(0,3),2)
                     balance = random.randint(0,1000)
-                    response = new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
-                    update_log = json.loads(response)
-                    total_valid += len(update_log['valid'])
-                    if (i+1)%10 ==0:
-                        shardinit(anchor)
+                    new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+                   
+                for p in range(1,m):
+                    if peer[p] != peer[anchor]:
+                        register_to_anchor(peer[anchor],peer[p])
 
                 end = time.time()
-                throughput.write(f"{k}, {m}, {n}, {total_valid}, {round(end-start,5)}\n")
+                printchain(peer[0])
+                throughput.write(f"{k}, {m}, {n}, {round(end-start,5)}\n")
         
         k= k+50
 
     throughput.write("...........Finished ........")
     throughput.close()
 
+#
+readConfig()
 latency_estimate()
 throughput_estimate()
 print("benchmarking finished")
-# %%
+

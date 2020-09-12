@@ -176,7 +176,6 @@ def new_transaction():
 
     return json.dumps(temp_update_log), 201
 
-
 def verify_and_add_block(block_index):
     global waiting_block
     global LAST_INDEX
@@ -501,6 +500,7 @@ def init_shard():
     global OVERLAPPING
     global IS_SHARDED
 
+
     track = blockchain.ShardInfoTracker()
 
     IS_SHARDED = True
@@ -535,6 +535,7 @@ def init_shard():
     apply_sharding(track.node_to_shard)
     send_info(track)
     return 'init shard returned'
+
 
 
 def apply_sharding(sharding_update):
@@ -607,6 +608,9 @@ def wholeshardquery():
 
     for shard in tracker.shard_to_node:
         peer = tracker.shard_to_node[shard][0]
+
+        if SELF_KEY in tracker.shard_to_node[shard]:
+            peer = SELF_KEY
 
         if (peer != SELF_KEY) and tracker.node_to_shard[peer]:
             data['shard'] = shard
@@ -721,7 +725,7 @@ if __name__ == '__main__':
     IS_ANCHOR = args.anchor
     host_ip =  get_host_ip()
     
-    SELF_KEY = "http://" + get_ext_ip() + ":" + repr(port)+"/"
+    SELF_KEY = "http://" + host_ip + ":" + repr(port)+"/"
     print(SELF_KEY)
     peer_insert(get_my_key())
     app.run(host=host_ip, port=port, debug=True)
