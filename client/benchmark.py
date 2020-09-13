@@ -206,10 +206,6 @@ def throughput_estimate():
 
                 for p in range(0,m):
                     initialize(peer[p],n)
-                
-                for p in range(1,m):
-                    if peer[p] != peer[anchor]:
-                        register_to_anchor(peer[anchor],peer[p])
 
                 total_valid = 0
                 start = time.time()
@@ -222,11 +218,13 @@ def throughput_estimate():
                         response_log = json.loads(response)
                         update_log = response_log[0]
                         total_valid += len(update_log['valid'])
-                    if (i+1) % 10 == 0:
-                        response = shardinit(peer[0])
                         #if response.status_code != 200:
                         #    break;
 
+                for p in range(1,m):
+                    if peer[p] != peer[anchor]:
+                        register_to_anchor(peer[anchor],peer[p])
+                        
                 end = time.time()
                 
                 throughput.write(f"{k}, {m}, {n}, {total_valid}, {round(end-start,5)}\n")
@@ -238,6 +236,6 @@ def throughput_estimate():
 
 #
 readConfig()
-latency_estimate()
+#latency_estimate()
 throughput_estimate()
 print("benchmarking finished")
