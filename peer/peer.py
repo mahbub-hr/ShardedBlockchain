@@ -48,6 +48,7 @@ def initialize():
 
     global  TX_PER_BLOCK, LAST_INDEX, IS_SHARDED,OVERLAPPING,LAST_SHARD,LAST_CHAIN_SIZE,x,PREV_HASH,peers
     global bchain, worldstate, tracker
+
     TX_PER_BLOCK = 1
     LAST_INDEX = 1
     IS_SHARDED = False
@@ -61,8 +62,18 @@ def initialize():
     worldstate = blockchain.Worldstate()
     tracker = blockchain.ShardInfoTracker()
     peers = []
+    temp_update_log = {}
+
+    # pBFT global variables
+    global added_blocks, yet_to_be_added_blocks, new_block_found_from_peers, new_block_found_from_orderer
+    global waiting_block, fault_tolerance
+    added_blocks = [] #entries are int (block index)
+    yet_to_be_added_blocks = [] #list of metadata from peers
+    new_block_found_from_peers = []
+    new_block_found_from_orderer = [] #entries are int (block index)
+    waiting_block = []
+    fault_tolerance = 0
     peer_insert(SELF_KEY)
-    
     return
 
 @app.route("/setoverlap",methods=['POST'])
@@ -534,7 +545,7 @@ def init_shard():
     tracker.print()
     apply_sharding(track.node_to_shard)
     send_info(track)
-    return 'init shard returned'
+    return 'init shard returned',200
 
 
 
@@ -682,7 +693,7 @@ def peer_broadcast(url, data, exclude, header={"Content-Type": 'application/json
 def home():
     print("tested ")
     return "<html>\
-                <body><h1> Welcome to Homepage</h1></body>\
+                <body><h1> Welcome to New Homepage</h1></body>\
             </html>"
 
 def get_host_ip():
@@ -723,9 +734,9 @@ if __name__ == '__main__':
     NODE_NUMBER = port
     # NODE_NUMBER = args.node
     IS_ANCHOR = args.anchor
-    host_ip =  get_host_ip()
+    host_ip =  get_ext_ip()
     
-    SELF_KEY = "http://" + get_ext_ip() + ":" + repr(port)+"/"
+    SELF_KEY = "http://" + host_ip + ":" + repr(port)+"/"
     print(SELF_KEY)
     peer_insert(get_my_key())
     app.run(host=host_ip, port=port, debug=True)

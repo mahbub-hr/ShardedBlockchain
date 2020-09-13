@@ -66,17 +66,17 @@ def register_to_anchor(anchor, node):
 def querybalance(file, k, m, n):
     
     elapsed = 0.0
-    for i in range(0,3):
-        node = random.randint(0,3)
-        key = account[random.randint(0,len(account)-1)]
-        url = f"{peer[node]}/query"
-        data = {"key":key}
-        start = time.time()
-        response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
-        end = time.time()
-        elapsed += end-start
+    #node = random.randint(0,3)
+    node =0
+    key = account[random.randint(0,len(account)-1)]
+    url = f"{peer[node]}/query"
+    data = {"key":key}
+    start = time.time()
+    response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
+    end = time.time()
+    elapsed = end-start
 
-    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,5)}\n')
+    file.write(f'{k}, {m}, {n}, {round(elapsed,5)}\n')
    
     if response.status_code == 200:
         print(response.content)
@@ -85,30 +85,29 @@ def wholeshardquery(file, k, m, n):
     
     elapsed = 0.0
     avg_query=0.0
-    for i in range(0,3):
-        node = random.randint(0,3)
-        #key = account[random.randint(0,len(account)-1)]
-        key = "A"
+    #for i in range(0,3):
+    node = 0#random.randint(0,3)
+    #key = account[random.randint(0,len(account)-1)]
+    key = "A"
 
-        url = f"{peer[node]}/wholeshardquery"
-        data = {"sender":key}
-        start = time.time()
-        response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
-        end = time.time()
-        elapsed = elapsed + end-start
-        data = json.loads(response.content)
-        print(f"{peer[node]} : {json.dumps(data['time_stats'], indent =4)}")
-        time_stats = data['time_stats']
-        avg_query += time_stats['total']
+    url = f"{peer[node]}/wholeshardquery"
+    data = {"sender":key}
+    start = time.time()
+    response = requests.post(url,json=data, headers={"Content-Type":'application/json'})
+    end = time.time()
+    elapsed = elapsed + end-start
+    data = json.loads(response.content)
+    print(f"{peer[node]} : {json.dumps(data['time_stats'], indent =4)}")
+    time_stats = data['time_stats']
+    avg_query = time_stats['total']
     
-    file.write(f'{k}, {m}, {n}, {round(elapsed/3.0,5)}, {round(avg_query/3.0,5)}\n')
-    
+    file.write(f'{k}, {m}, {n}, {round(elapsed,5)}, {round(avg_query,5)}\n')
     
     return
 
 def shardinit(addr):
     response=requests.get(addr+"/shardinit")
-    print(response.content)
+    return response
 
 def printchain(addr):
     url = f"{addr}/printchain"
@@ -208,23 +207,33 @@ def throughput_estimate():
                 for p in range(0,m):
                     initialize(peer[p],n)
                 
-                start = time.time()
-                for i in range(k):
-                    rand_account = random.sample(range(0,3),2)
-                    balance = random.randint(0,1000)
-                    new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
-                   
                 for p in range(1,m):
                     if peer[p] != peer[anchor]:
                         register_to_anchor(peer[anchor],peer[p])
 
+                total_valid = 0
+                start = time.time()
+                for i in range(k):
+                    rand_account = random.sample(range(0,3),2)
+                    balance = random.randint(0,10000)
+                    response = new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+                    if response:
+                        #print(response)
+                        response_log = json.loads(response)
+                        update_log = response_log[0]
+                        total_valid += len(update_log['valid'])
+                    if (i+1) % 10 == 0:
+                        response = shardinit(peer[0])
+                        #if response.status_code != 200:
+                        #    break;
+
                 end = time.time()
-                printchain(peer[0])
-                throughput.write(f"{k}, {m}, {n}, {round(end-start,5)}\n")
+                
+                throughput.write(f"{k}, {m}, {n}, {total_valid}, {round(end-start,5)}\n")
         
         k= k+50
 
-    throughput.write("...........Finished ........")
+    throughput.write("...........Finished ........\n")
     throughput.close()
 
 #
@@ -232,4 +241,3 @@ readConfig()
 latency_estimate()
 throughput_estimate()
 print("benchmarking finished")
-
