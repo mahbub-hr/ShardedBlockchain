@@ -224,7 +224,9 @@ def throughput_estimate():
                 for p in range(1,m):
                     if peer[p] != peer[anchor]:
                         register_to_anchor(peer[anchor],peer[p])
-                        
+
+                shardinit(peer[0])
+
                 end = time.time()
                 
                 throughput.write(f"{k}, {m}, {n}, {total_valid}, {round(end-start,5)}\n")
