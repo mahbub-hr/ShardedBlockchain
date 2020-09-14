@@ -221,11 +221,10 @@ def throughput_estimate():
                         #if response.status_code != 200:
                         #    break;
 
+                shardinit(peer[0])
                 for p in range(1,m):
                     if peer[p] != peer[anchor]:
                         register_to_anchor(peer[anchor],peer[p])
-
-                shardinit(peer[0])
 
                 end = time.time()
                 
