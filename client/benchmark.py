@@ -197,40 +197,40 @@ def latency_estimate():
 
 def throughput_estimate():
     number_of_node = len(peer)+1
-    k = 200
+    k = 100000
     throughput = open("throughput.txt", mode='a',buffering=1) 
 
-    while k <=300:
-        for m in range(4, number_of_node):
-            for n in range(1,m+1):
+    
+    for m in range(4, number_of_node):
+        for n in range(1,m+1):
 
-                for p in range(0,m):
-                    initialize(peer[p],n)
+            for p in range(0,m):
+                initialize(peer[p],n)
 
-                total_valid = 0
-                start = time.time()
-                for i in range(k):
-                    rand_account = random.sample(range(0,3),2)
-                    balance = random.randint(0,10000)
-                    response = new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
-                    if response:
-                        #print(response)
-                        response_log = json.loads(response)
-                        update_log = response_log[0]
-                        total_valid += len(update_log['valid'])
-                        #if response.status_code != 200:
-                        #    break;
+            total_valid = 0
+            start = time.time()
+            for i in range(k):
+                rand_account = random.sample(range(0,3),2)
+                balance = random.randint(0,10000)
+                response = new_transaction(peer[anchor], account[rand_account[0]],account[rand_account[1]],balance)
+                if response:
+                    #print(response)
+                    response_log = json.loads(response)
+                    update_log = response_log[0]
+                    total_valid += len(update_log['valid'])
+                    #if response.status_code != 200:
+                    #    break;
 
-                shardinit(peer[0])
-                for p in range(1,m):
-                    if peer[p] != peer[anchor]:
-                        register_to_anchor(peer[anchor],peer[p])
+            shardinit(peer[0])
+            for p in range(1,m):
+                if peer[p] != peer[anchor]:
+                    register_to_anchor(peer[anchor],peer[p])
 
-                end = time.time()
-                
-                throughput.write(f"{k}, {m}, {n}, {total_valid}, {round(end-start,5)}\n")
+            end = time.time()
+            
+            throughput.write(f"{k}, {m}, {n}, {total_valid}, {round(end-start,5)}\n")
         
-        k= k+50
+        
 
     throughput.write("...........Finished ........\n")
     throughput.close()
