@@ -197,7 +197,7 @@ def latency_estimate():
 
 def throughput_estimate():
     number_of_node = len(peer)+1
-    k = 1000
+    k = 10000
     throughput = open("throughput.txt", mode='a',buffering=1) 
 
     
