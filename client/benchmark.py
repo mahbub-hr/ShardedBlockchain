@@ -197,7 +197,7 @@ def latency_estimate():
 
 def throughput_estimate():
     number_of_node = len(peer)+1
-    k = 10000
+    k = 5000
     throughput = open("throughput.txt", mode='a',buffering=1) 
 
     
@@ -220,11 +220,10 @@ def throughput_estimate():
                     total_valid += len(update_log['valid'])
                     #if response.status_code != 200:
                     #    break;
-
-            shardinit(peer[0])
             for p in range(1,m):
                 if peer[p] != peer[anchor]:
                     register_to_anchor(peer[anchor],peer[p])
+            shardinit(peer[0])
 
             end = time.time()
             
