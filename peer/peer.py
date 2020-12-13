@@ -9,9 +9,13 @@ import psutil
 import os
 from flask import Flask, jsonify, request
 import threading
+import logging
 app = Flask(__name__)
 
 import blockchain
+
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%H:%M:%S')
 
 adding_block = False
 
@@ -73,7 +77,7 @@ def setoverlap():
     global OVERLAPPING
     data = request.get_json()
     initialize()
-    print('initialized to zero')
+    logging.info(f'initialized to zero')
     OVERLAPPING = data['overlap']
     return 'setoverlap returned',200
 
@@ -82,7 +86,7 @@ def peer_insert(p):
     if p not in peers:
         peers.append(p)
     else:
-        print(f"{p} already exists")
+        logging.info(f"{p} already exists")
     
     fault_tolerance = math.floor( (len(peers) - 1) /3 )
 
@@ -98,7 +102,7 @@ def peer_update(peer):
 
 def get_my_key():
     if SELF_KEY == "":
-        print("key is not set")
+        logging.info(f"key is not set")
         return ""
     return SELF_KEY
 
@@ -152,7 +156,7 @@ def getchainsize():
 
 def send_transaction_to_orderer(tx, Orderer):
     response = requests.post(Orderer + '/getTransaction', json = tx, headers={"Content-Type": 'application/json'})
-    print("Transaction sent to Orderer, Orderer response - ", response.content)
+    logging.info(f"Transaction sent to Orderer, Orderer response - {response.content}")
 
 #act as a orderer
 @app.route('/transactions/new', methods=['POST'])
@@ -189,7 +193,7 @@ def verify_and_add_block(block_index):
                              )
     block.hash = block_data['hash']"""
     block = blockchain.Block
-    print("len of waiting block - ", len(waiting_block))
+    #print("len of waiting block - ", len(waiting_block))
     for i in range(len(waiting_block)):
         if int(waiting_block[i].index) == int(block_index):
             #print("\n\n\n\nInside, i = ",i, "\n\n")
@@ -247,7 +251,7 @@ def pBFT_prepare():
                 reply_found = reply_found + 1
     
     if reply_found >= required_replies:
-        print("Block added stage 1")
+        #print("Block added stage 1")
         if not adding_block:
             temp_update_log = verify_and_add_block(int(block_data["index"]))
             adding_block = False
@@ -274,9 +278,9 @@ def pBFT_commit():
     my_hash = ""
 
     if int(block_index) not in added_blocks:
-        print("inside 1st if")
+        #print("inside 1st if")
         if int(block_index) in new_block_found_from_orderer:
-            print("inside 2nd if")
+            #print("inside 2nd if")
             newentry = [block_index, sender, hash_computed_by_sender]
             yet_to_be_added_blocks.append(newentry)
             
@@ -296,7 +300,7 @@ def pBFT_commit():
             return "reply received from peers but not yet from orderer, reply recorded", 200
 
     if reply_found >= required_replies:
-        print("Block added stage 2")
+        #print("Block added stage 2")
         if not adding_block:
             temp_update_log = verify_and_add_block(int(block_index))
             adding_block = False
@@ -332,7 +336,7 @@ def sharded_chain(node_address):
     shard = []
     tracker.printshard()
     k = min(len(tracker.node_to_shard[SELF_KEY]), len(tracker.node_to_shard), len(tracker.shard_to_node))
-    print('giving ', k, ' shards')
+    logging.info(f'giving {k} shards')
     track = blockchain.ShardInfoTracker()
     i = 1
     while k > 0:
@@ -346,7 +350,7 @@ def sharded_chain(node_address):
     tracker.print()
     unsharded = unsharded_chain()
 
-    print(node_address)
+    logging.info(f"node_address - {node_address}")
 
     data = {
             'track': track.__dict__,
@@ -358,7 +362,7 @@ def sharded_chain(node_address):
         send_shard_to(shards,node_address)
 
     resp = peer_broadcast('sendnewnodeinfo', data, {SELF_KEY, node_address})
-    print(resp)
+    logging.info(f"resp - {resp}")
 
     response = {
         'worldstate': worldstate.worldstate,
@@ -371,7 +375,7 @@ def sharded_chain(node_address):
 @app.route('/printpeer')
 def showpeer():
     global peers
-    print(peers)
+    logging.info(f"peers - {peers}")
     return 'Printed', 200
 
 @app.route('/peer_update_on_registration', methods=['POST'])
@@ -415,7 +419,7 @@ def register_to_orderer(Orderer, data, headers):
     response = requests.post(Orderer + "/register",
                              json=data, headers=headers)
     if response.status_code == 200:
-        print("Registered to Orderer : Orderer response - ",response.content)
+        logging.info(f"Registered to Orderer : Orderer response - {response.content}")
 
 
 @app.route('/register_with', methods=['POST'])
@@ -456,7 +460,7 @@ def register_with_existing_node():
         # need to remove if there is a seperate orderer
         LAST_INDEX = bchain.chain[-1].index + 1
         peer_update(json_data['peers'])
-        print(peers)
+        #print(peers)
         worldstate.worldstate = json_data['worldstate']
         return jsonify("Registration successful"), 200
     else:
@@ -479,7 +483,7 @@ def get_new_node_info():
     if SELF_KEY not in node_to_shard:
         return "get new node info returned wihtout sending any shard"
     shards = bchain.remove_multiple_shards(node_to_shard[SELF_KEY], SHARD_SIZE)
-    print(send_shard_to(shards, node_address))
+    logging.info(f"{send_shard_to(shards, node_address)}")
     return 'get new node info returned', 200
 
 def send_shard_to(shards, node_address):
@@ -491,7 +495,7 @@ def send_shard_to(shards, node_address):
     }
     response = requests.post(node_address+'sendshard', json=data, headers={'Content-Type': "application/json"})
     if response.status_code == 200:
-        print(response.content)
+        logging.info(f"response - {response.content}")
     return 'send_shard returned'
 
 @app.route('/sendshard',methods=["POST"])
@@ -499,7 +503,7 @@ def recv_shard():
     global IS_SHARDED
     global bchain
     IS_SHARDED = True
-    print('recv shard entered')
+    logging.info(f'recv shard entered')
     data = request.get_json()
     shard = data['shard']
     generated_shard=create_chain_from_dump(shard)
@@ -533,7 +537,7 @@ def create_chain_from_dump(chain_dump):
 @app.route("/shardinit", methods=['GET'])
 def init_shard():
     global LAST_SHARD
-    print('chain len: ', len(bchain.chain))
+    logging.info(f'chain len: {len(bchain.chain)}')
     global peers
     global OVERLAPPING
     global IS_SHARDED
@@ -541,9 +545,9 @@ def init_shard():
     track = blockchain.ShardInfoTracker()
 
     IS_SHARDED = True
-    print(peers)
+    logging.info(f"peers - {peers}")
     num_of_shard = (len(bchain.chain) - LAST_CHAIN_SIZE) / SHARD_SIZE
-    print('num of shard: ', num_of_shard)
+    logging.info(f'num of shard: {num_of_shard}')
     i = 1
     # make this global to turn around lapping
     global x
@@ -599,7 +603,7 @@ def send_info(track):
                                      json=(track.__dict__),
                                      headers=headers)
             if response.status_code == 200:
-                print(peer, ": ", response.content)
+                logging.info(f"{peer} : {response.content}")
     return
 
 
@@ -692,20 +696,15 @@ def print_tracker():
 @app.route("/printchain", methods=['GET'])
 def printchain():
     for block in bchain.chain:
+        logging.info(f"Current chain - ")
         print(json.dumps(block.__dict__, indent=4))
 
     return "print chain"
 
-@app.route("/printpeer", methods=["GET"])
-def printpeer():
-    for p in peers:
-        print(p)
-
-    return "peer list is printed"
 
 def peer_broadcast_thread(url, data, header={"Content-Type": 'application/json'}):
     response = requests.post(url, json = data, headers=header)
-    print(response.content)
+    logging.info(f"response of broadcast from {url} - {response.content}")
 
 def peer_broadcast(url, data, exclude, header={"Content-Type": 'application/json'}):
     for peer in peers:
@@ -729,11 +728,11 @@ def get_host_ip():
         s.close()
         return ip
     except:
-        print("can not get host name and ip address")
+        logging.info(f"can not get host name and ip address")
 
 def get_ext_ip():
     ip = requests.get('https://api.ipify.org').text 
-    print(f'My public IP address is: {ip}')
+    logging.info(f'My public IP address is: {ip}')
     return ip
 
 def shutdown_server():
@@ -762,6 +761,6 @@ if __name__ == '__main__':
     host_ip =  get_host_ip()
     
     SELF_KEY = "http://" + host_ip + ":" + repr(port)+"/"
-    print(SELF_KEY)
+    logging.info(f"SELF_KEY - {SELF_KEY}")
     peer_insert(get_my_key())
     app.run(host=host_ip, port=port, debug=True, threaded=False)

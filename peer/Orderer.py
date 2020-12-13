@@ -108,4 +108,4 @@ if __name__ == '__main__':
     
     SELF_KEY = "http://" + get_host_ip() + ":" + repr(port)+"/"
     print(SELF_KEY)
-    app.run(host=host_ip, port=port, debug=True)
+    app.run(host=host_ip, port=port, debug=True, threaded=False)
