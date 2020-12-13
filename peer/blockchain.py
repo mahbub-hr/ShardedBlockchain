@@ -72,7 +72,6 @@ class Worldstate:
             if not ret:
                 update_log['invalid'].append(tx)
             update_log['valid'].append(tx)
-        #print(json.dumps(update_log))
         return update_log
 
     def get(self, key):
