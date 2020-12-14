@@ -1,6 +1,5 @@
 import logging
 import time
-import numpy as np
 import copy
 import requests
 import json
