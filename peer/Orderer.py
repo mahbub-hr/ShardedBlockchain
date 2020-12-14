@@ -19,7 +19,6 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%H:%M:%S')
 
 transaction_queue = []
-Block_index = 0
 creating_block = False
 PREV_HASH=""
 LAST_INDEX = 1
@@ -29,7 +28,7 @@ bchain = blockchain.Blockchain()
 PREV_HASH = bchain.chain[0].hash
 worldstate = blockchain.Worldstate()
 tracker = blockchain.ShardInfoTracker()
-max_number_of_transaction_in_single_block = 50
+max_number_of_transaction_in_single_block = 100
 
 peerlist = []
 
@@ -87,6 +86,30 @@ def add_tx_to_queue():
     if len(bchain.current_transactions) == max_number_of_transaction_in_single_block:
         create_block()
     return "Transaction Enqued", 200
+
+
+@app.route('/initialize', methods=['POST'])
+def init_orderer():
+    global transaction_queue
+    global creating_block
+    global PREV_HASH
+    global LAST_INDEX
+    global bchain
+    global PREV_HASH
+    global worldstate
+    global tracker
+    global max_number_of_transaction_in_single_block
+
+    transaction_queue = []
+    creating_block = False
+    PREV_HASH=""
+    LAST_INDEX = 1
+    bchain = blockchain.Blockchain()
+    PREV_HASH = bchain.chain[0].hash
+    worldstate = blockchain.Worldstate()
+    tracker = blockchain.ShardInfoTracker()
+    max_number_of_transaction_in_single_block = 50
+
 
 @app.route('/register', methods=['POST'])
 def new_peer():

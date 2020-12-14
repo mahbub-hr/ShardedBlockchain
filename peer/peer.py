@@ -50,11 +50,26 @@ new_block_found_from_orderer = [] #entries are int (block index)
 waiting_block = []
 fault_tolerance = 0
 
+first_tx = False
+first_tx_time = None
+last_block_add_time = time.time()
 
 def initialize():
 
     global  TX_PER_BLOCK, LAST_INDEX, IS_SHARDED,OVERLAPPING,LAST_SHARD,LAST_CHAIN_SIZE,x,PREV_HASH,peers
     global bchain, worldstate, tracker
+    
+    global added_blocks #entries are int (block index)
+    global yet_to_be_added_blocks #list of metadata from peers
+    global new_block_found_from_peers
+    global new_block_found_from_orderer #entries are int (block index)
+    global waiting_block
+    global fault_tolerance
+
+    global first_tx
+    global first_tx_time
+    global last_block_add_time
+    
     TX_PER_BLOCK = 1
     LAST_INDEX = 1
     IS_SHARDED = False
@@ -67,8 +82,17 @@ def initialize():
     PREV_HASH = bchain.chain[0].hash
     worldstate = blockchain.Worldstate()
     tracker = blockchain.ShardInfoTracker()
-    peers = []
-    peer_insert(SELF_KEY)
+    added_blocks = [] #entries are int (block index)
+    yet_to_be_added_blocks = [] #list of metadata from peers
+    new_block_found_from_peers = []
+    new_block_found_from_orderer = [] #entries are int (block index)
+    waiting_block = []
+    fault_tolerance = 0
+    first_tx = False
+    first_tx_time = None
+    last_block_add_time = time.time()
+    #peers = []
+    #peer_insert(SELF_KEY)
     
     return
 
@@ -138,6 +162,13 @@ def get_obj_size(obj):
 
     return sz
     
+
+@app.route('/latency', methods=['GET'])
+def latency():
+    global first_tx_time, last_block_add_time
+    return (f"{last_block_add_time - first_tx_time}"), 200
+
+
 @app.route('/getsize', methods=['GET'])
 def getchainsize():
     
@@ -165,6 +196,8 @@ def new_transaction():
     global PREV_HASH
     global temp_update_log
     global Orderer
+    global first_tx
+    global first_tx_time
     temp_update_log = {}
     values = request.get_json()
 
@@ -172,6 +205,11 @@ def new_transaction():
     required = ['ts', 'sender', 'recipient', 'amount']
     if not all(k in values for k in required):
         return 'Missing values', 400
+
+    if first_tx == False:
+        first_tx = True
+        first_tx_time = time.time()
+
 
     t = threading.Thread(target=send_transaction_to_orderer, args=(values, Orderer, ))
     t.start()
@@ -185,6 +223,7 @@ def verify_and_add_block(block_index):
     global waiting_block
     global LAST_INDEX
     global added_blocks
+    global last_block_add_time
     """block_data = request.get_json()
     block = blockchain.Block(block_data["index"],
                              block_data["transactions"],
@@ -217,6 +256,7 @@ def verify_and_add_block(block_index):
     
     added_blocks.append(int(block_index))
     update_log = worldstate.update_with_block(block)
+    last_block_add_time = time.time()
 
     return update_log, 201
 
@@ -760,7 +800,7 @@ if __name__ == '__main__':
     IS_ANCHOR = args.anchor
     host_ip =  get_host_ip()
     
-    SELF_KEY = "http://" + host_ip + ":" + repr(port)+"/"
+    SELF_KEY = "http://" + get_ext_ip() + ":" + repr(port)+"/"
     logging.info(f"SELF_KEY - {SELF_KEY}")
     peer_insert(get_my_key())
     app.run(host=host_ip, port=port, debug=True, threaded=False)
