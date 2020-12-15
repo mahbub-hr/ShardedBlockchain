@@ -735,8 +735,8 @@ def print_tracker():
 
 @app.route("/printchain", methods=['GET'])
 def printchain():
+    logging.info(f"Total Blocks - {len(bchain.chain)} Current chain - ")
     for block in bchain.chain:
-        logging.info(f"Current chain - ")
         print(json.dumps(block.__dict__, indent=4))
 
     return "print chain"
