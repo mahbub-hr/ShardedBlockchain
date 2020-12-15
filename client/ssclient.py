@@ -5,9 +5,8 @@ import time
 from time import sleep
 import math
 
-CONNECTED_NODE_ADDRESS = "http://192.168.0."
-Orderer = "http://40.76.87.243:5000/"
-NODE = list()
+Orderer = "http://52.188.52.226:5000/"
+NODE = ["http://52.188.52.253:5000/", "http://52.188.53.194:5000/", "http://52.188.48.150:5000/", "http://40.84.21.53:5000/"]
 
 def readPeerList(): 
     with open('peer_list.txt','r') as file:
@@ -121,29 +120,26 @@ def latency(node):
     data = {'dat': 200}
     address = f'{node}/latency'
     response = requests.get(address)
-    print(response.content)
+    print((800.0 * 1000)/float(response.content))
 
 
 
 
-
-register_to_anchor('http://40.121.35.50:5000','http://40.121.35.50:5000', Orderer)
-register_to_anchor('http://40.121.35.50:5000','http://40.76.69.71:5000', Orderer)
-register_to_anchor('http://40.121.35.50:5000','http://40.76.70.75:5000', Orderer)
-register_to_anchor('http://40.121.35.50:5000','http://40.79.255.70:5000', Orderer)
+for i in range(4):
+    register_to_anchor(NODE[0],NODE[i], Orderer)
 
 for i in range(800):
     if i%4 == 0:
-        new_transaction('http://40.121.35.50:5000','C','D',5)
+        new_transaction(NODE[0],'C','D',5)
     if i%4 == 1:
-        new_transaction('http://40.76.69.71:5000','A','B',5)
+        new_transaction(NODE[1],'A','B',5)
     if i%4 == 2:
-        new_transaction('http://40.76.70.75:5000','B','C',5)
+        new_transaction(NODE[2],'B','C',5)
     if i%4 == 3:
-        new_transaction('http://40.79.255.70:5000','D','A',5)
+        new_transaction(NODE[3],'D','A',5)
 
 
-shardinit("http://40.121.35.50:5000")
+shardinit(NODE[0])
 sleep(5)
 
-latency("http://40.121.35.50:5000")
+latency(NODE[0])
