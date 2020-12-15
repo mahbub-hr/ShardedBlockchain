@@ -4,7 +4,6 @@ import json
 import time
 from time import sleep
 import math
-import flask
 
 Orderer = "http://52.150.10.126:5000/"
 NODE = ["http://52.255.188.66:5000/", "http://52.152.228.253:5000/", "http://104.211.54.236:5000/", "http://13.68.75.6:5000/"]
