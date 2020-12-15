@@ -743,10 +743,9 @@ def print_tracker():
     return 'print tracker'
 
 @app.route("/printchainwithtxs", methods=['GET'])
-def printchain():
+def printchainwithtxs():
     logging.info(f"Total Blocks - {len(bchain.chain)} Current chain - ")
     for block in bchain.chain:
-
         print(json.dumps(block.__dict__, indent=4))
 
     return "print chain"
@@ -757,8 +756,7 @@ def printchain():
     for block in bchain.chain:
         temp_block = copy.deepcopy(block)
         del temp_block["transactions"]
-        print(json.dumps(tempblock.__dict__, indent=4))
-
+        print(json.dumps(temp_block.__dict__, indent=4))
     return "print chain without txs"
 
 
