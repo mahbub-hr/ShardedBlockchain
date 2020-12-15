@@ -10,6 +10,7 @@ import os
 from flask import Flask, jsonify, request
 import threading
 import logging
+import copy
 app = Flask(__name__)
 
 import blockchain
@@ -54,6 +55,9 @@ first_tx = False
 first_tx_time = None
 last_block_add_time = time.time()
 
+unsharded_blocks = 0
+
+
 def initialize():
 
     global  TX_PER_BLOCK, LAST_INDEX, IS_SHARDED,OVERLAPPING,LAST_SHARD,LAST_CHAIN_SIZE,x,PREV_HASH,peers
@@ -69,6 +73,8 @@ def initialize():
     global first_tx
     global first_tx_time
     global last_block_add_time
+
+    global unsharded_blocks
     
     TX_PER_BLOCK = 1
     LAST_INDEX = 1
@@ -91,6 +97,7 @@ def initialize():
     first_tx = False
     first_tx_time = None
     last_block_add_time = time.time()
+    unsharded_blocks = 0
     #peers = []
     #peer_insert(SELF_KEY)
     
@@ -224,6 +231,10 @@ def verify_and_add_block(block_index):
     global LAST_INDEX
     global added_blocks
     global last_block_add_time
+    global unsharded_blocks
+    global SHARD_SIZE
+    global peers
+    global IS_ANCHOR
     """block_data = request.get_json()
     block = blockchain.Block(block_data["index"],
                              block_data["transactions"],
@@ -257,6 +268,11 @@ def verify_and_add_block(block_index):
     added_blocks.append(int(block_index))
     update_log = worldstate.update_with_block(block)
     last_block_add_time = time.time()
+    unsharded_blocks += 1
+    if IS_ANCHOR:
+        if unsharded_blocks == (SHARD_SIZE * len(peers)):
+            init_shard()
+            unsharded_blocks = 0
 
     return update_log, 201
 
@@ -635,15 +651,8 @@ def apply_sharding(sharding_update):
 
 
 def send_info(track):
-    for peer in peers:
-        if peer != SELF_KEY:
-            url = f"{peer}sendshardinfo"
-            headers = {'Content-Type': "application/json"}
-            response = requests.post(url,
-                                     json=(track.__dict__),
-                                     headers=headers)
-            if response.status_code == 200:
-                logging.info(f"{peer} : {response.content}")
+    global SELF_KEY
+    peer_broadcast("sendshardinfo", track.__dict__, SELF_KEY, header={"Content-Type": 'application/json'})
     return
 
 
@@ -733,13 +742,24 @@ def print_tracker():
     tracker.print()
     return 'print tracker'
 
+@app.route("/printchainwithtxs", methods=['GET'])
+def printchain():
+    logging.info(f"Total Blocks - {len(bchain.chain)} Current chain - ")
+    for block in bchain.chain:
+
+        print(json.dumps(block.__dict__, indent=4))
+
+    return "print chain"
+
 @app.route("/printchain", methods=['GET'])
 def printchain():
     logging.info(f"Total Blocks - {len(bchain.chain)} Current chain - ")
     for block in bchain.chain:
-        print(json.dumps(block.__dict__, indent=4))
+        temp_block = copy.deepcopy(block)
+        del temp_block["transactions"]
+        print(json.dumps(tempblock.__dict__, indent=4))
 
-    return "print chain"
+    return "print chain without txs"
 
 
 def peer_broadcast_thread(url, data, header={"Content-Type": 'application/json'}):
@@ -793,11 +813,13 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--port', default=5000, type=int, help='port to listen on')
     parser.add_argument('-a', '--anchor', default=False, type=bool, help='Is this node anchor')
     parser.add_argument('-n', '--node', default=1, type=int, help='this node number')
+    parser.add_argument('-s', '--shard_size', default=2, type=int, help='number of blocks in single shard')
     args = parser.parse_args()
     port = args.port
     NODE_NUMBER = port
     # NODE_NUMBER = args.node
     IS_ANCHOR = args.anchor
+    SHARD_SIZE = args.shard_size
     host_ip =  get_host_ip()
     
     SELF_KEY = "http://" + get_ext_ip() + ":" + repr(port)+"/"

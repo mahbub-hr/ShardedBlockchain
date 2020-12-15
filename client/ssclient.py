@@ -4,9 +4,10 @@ import json
 import time
 from time import sleep
 import math
+import flask
 
-Orderer = "http://52.188.52.226:5000/"
-NODE = ["http://52.188.52.253:5000/", "http://52.188.53.194:5000/", "http://52.188.48.150:5000/", "http://40.84.21.53:5000/"]
+Orderer = "http://52.150.10.126:5000/"
+NODE = ["http://52.255.188.66:5000/", "http://52.152.228.253:5000/", "http://104.211.54.236:5000/", "http://13.68.75.6:5000/"]
 
 def readPeerList(): 
     with open('peer_list.txt','r') as file:
@@ -138,8 +139,8 @@ for i in range(800):
     if i%4 == 3:
         new_transaction(NODE[3],'D','A',5)
 
-
-shardinit(NODE[0])
 sleep(5)
+for i in range(4):
+    printchain(NODE[i])
 
 latency(NODE[0])
