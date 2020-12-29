@@ -172,7 +172,7 @@ def peerlist(node):
     response = requests.get(address)
     print(response.content)
     
-def latency(node, no_txs):
+def throughput(node, no_txs):
     address = f'{node}/latency'
     response = requests.get(address)
     return (no_txs * 1000)/float(response.content)
@@ -324,7 +324,7 @@ for k in k_txs:
             if i%4 == 3:
                 new_transaction(NODE[chosen_node],'D','A',5)
 
-        wholeshardquery("history_query_latency_vs_n.csv", "A", ovrlp, (k/200))
+        wholeshardquery("history_query_latency_vs_n.csv", "A", ovrlp, (k/200)) # k, n, history_latency format
 
 
 # history query latency vs m (n is 4)
@@ -346,6 +346,29 @@ for k in k_txs:
             if i%4 == 3:
                 new_transaction(NODE[chosen_node],'D','A',5)
 
-        wholeshardquery("history_query_latency_vs_m.csv", "A", no_peer, (k/200))
+        wholeshardquery("history_query_latency_vs_m.csv", "A", no_peer, (k/200)) # k, m, history_latency format
 
 
+# throughput varying m and n (k = 150)
+print("preparing throughput varying m and n------------------- (k = 150)")
+for no_peer in range(4, 11):
+    for ovrlp in range(1, 11):
+        init_network(ovrlp)
+        peer_up(no_peer)
+        Clients()
+
+        for i in range(30000):
+            chosen_node = random.randint(0, (no_peer - 1))
+            if i%4 == 0:
+                new_transaction(NODE[chosen_node],'C','D',5)
+            if i%4 == 1:
+                new_transaction(NODE[chosen_node],'A','B',5)
+            if i%4 == 2:
+                new_transaction(NODE[chosen_node],'B','C',5)
+            if i%4 == 3:
+                new_transaction(NODE[chosen_node],'D','A',5)
+
+        throughput_ = throughput(NODE[0], 30000)
+        thpt = open("throughput.csv", "a")
+        thpt.write(f'{no_peer},{ovrlp},{throughput_}\n') # m, n, throughput format
+        thpt.close()
