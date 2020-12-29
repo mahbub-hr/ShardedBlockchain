@@ -16,6 +16,15 @@ app = Flask(__name__)
 import blockchain
 
 
+from base64 import (
+    b64encode,
+    b64decode,
+)
+
+from Crypto.Hash import SHA256
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.PublicKey import RSA
+
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%H:%M:%S')
 
 adding_block = False
@@ -39,6 +48,7 @@ PREV_HASH = bchain.chain[0].hash
 worldstate = blockchain.Worldstate()
 tracker = blockchain.ShardInfoTracker()
 Orderer = None
+MSP = None
 
 peers = []
 temp_update_log = {}
@@ -57,6 +67,51 @@ last_block_add_time = time.time()
 
 unsharded_blocks = 0
 
+@app.route('/init_node', methods=['GET'])
+def initi_peer():
+
+    global  TX_PER_BLOCK, LAST_INDEX, IS_SHARDED,OVERLAPPING,LAST_SHARD,LAST_CHAIN_SIZE,x,PREV_HASH,peers
+    global bchain, worldstate, tracker
+    
+    global added_blocks #entries are int (block index)
+    global yet_to_be_added_blocks #list of metadata from peers
+    global new_block_found_from_peers
+    global new_block_found_from_orderer #entries are int (block index)
+    global waiting_block
+    global fault_tolerance
+
+    global first_tx
+    global first_tx_time
+    global last_block_add_time
+
+    global unsharded_blocks
+    
+    TX_PER_BLOCK = 1
+    LAST_INDEX = 1
+    IS_SHARDED = False
+    OVERLAPPING = 1
+    LAST_SHARD = 0
+    LAST_CHAIN_SIZE = 1
+    x = 0
+    PREV_HASH = ""
+    bchain = blockchain.Blockchain()
+    PREV_HASH = bchain.chain[0].hash
+    worldstate = blockchain.Worldstate()
+    tracker = blockchain.ShardInfoTracker()
+    added_blocks = [] #entries are int (block index)
+    yet_to_be_added_blocks = [] #list of metadata from peers
+    new_block_found_from_peers = []
+    new_block_found_from_orderer = [] #entries are int (block index)
+    waiting_block = []
+    fault_tolerance = 0
+    first_tx = False
+    first_tx_time = None
+    last_block_add_time = time.time()
+    unsharded_blocks = 0
+    peers = []
+    peer_insert(SELF_KEY)
+    
+    return "Peer Reset - Done", 200
 
 def initialize():
 
@@ -98,8 +153,8 @@ def initialize():
     first_tx_time = None
     last_block_add_time = time.time()
     unsharded_blocks = 0
-    #peers = []
-    #peer_insert(SELF_KEY)
+    peers = []
+    peer_insert(SELF_KEY)
     
     return
 
@@ -209,7 +264,7 @@ def new_transaction():
     values = request.get_json()
 
     # Check that the required fields are in the POST'ed data
-    required = ['ts', 'sender', 'recipient', 'amount']
+    required = ['ts', 'sender', 'recipient', 'amount', 'sig']
     if not all(k in values for k in required):
         return 'Missing values', 400
 
@@ -217,11 +272,23 @@ def new_transaction():
         first_tx = True
         first_tx_time = time.time()
 
+    
+    msg = values['sender'] + values['recipient'] + str(values['amount'])
+    
+    digest = SHA256.new()
+    digest.update(msg.encode("utf-8"))
+    public_key = worldstate.publickeys[values['sender']]
+    verifier = PKCS1_v1_5.new(public_key)
+    verified = verifier.verify(digest, (values['sig']).to_bytes(values['len'], byteorder="big"))
 
-    t = threading.Thread(target=send_transaction_to_orderer, args=(values, Orderer, ))
-    t.start()
+    #print("Verified value ---------- ", verified)
+    if verified:
+        t = threading.Thread(target=send_transaction_to_orderer, args=(values, Orderer, ))
+        t.start()
 
-    return "Transaction sent to Orderer", 201
+        return "Transaction sent to Orderer", 201
+    
+    return "Transaction verification failed, discarded", 401
 
 
 def verify_and_add_block(block_index):
@@ -235,6 +302,7 @@ def verify_and_add_block(block_index):
     global SHARD_SIZE
     global peers
     global IS_ANCHOR
+    global OVERLAPPING
     """block_data = request.get_json()
     block = blockchain.Block(block_data["index"],
                              block_data["transactions"],
@@ -270,7 +338,7 @@ def verify_and_add_block(block_index):
     last_block_add_time = time.time()
     unsharded_blocks += 1
     if IS_ANCHOR:
-        if unsharded_blocks == (SHARD_SIZE * len(peers)):
+        if unsharded_blocks == ((SHARD_SIZE * len(peers)) / OVERLAPPING):
             init_shard()
             unsharded_blocks = 0
 
@@ -478,12 +546,31 @@ def register_to_orderer(Orderer, data, headers):
         logging.info(f"Registered to Orderer : Orderer response - {response.content}")
 
 
+def register_to_msp(MSP, data, headers):
+    response = requests.post(MSP + "/register",
+                             json=data, headers=headers)
+    if response.status_code == 200:
+        logging.info(f"Registered to MSP : MSP response - {response.content}")
+
+
+@app.route('/new_client', methods=['POST'])
+def newclient():
+    data = request.get_json()
+    global worldstate
+    worldstate.insert(data["name"], data["amount"], RSA.importKey(data["publickey"].encode("utf-8")))
+    print(worldstate.worldstate)
+    print(worldstate.publickeys)
+    return "CLient Added", 200
+
+
 @app.route('/register_with', methods=['POST'])
 def register_with_existing_node():
     global Orderer
+    global MSP
     global IS_ANCHOR
     node_address = request.get_json()["node_address"]
     Orderer = request.get_json()["orderer"]
+    MSP = request.get_json()["msp"]
     if not node_address:
         return "Invalid data", 400
 
@@ -491,8 +578,10 @@ def register_with_existing_node():
     headers = {'Content-Type': "application/json"}
 
     # Make a request to register with remote node and obtain information
-    t = threading.Thread(target = register_to_orderer, args = (Orderer, data, headers, ))
-    t.start()
+    #t = threading.Thread(target = register_to_orderer, args = (Orderer, data, headers, ))
+    #t.start()
+    t2 = threading.Thread(target = register_to_msp, args = (MSP, data, headers, ))
+    t2.start()
     if IS_ANCHOR:
         return jsonify("Anchor registered to orderer"), 200
     response = requests.post(node_address + "/register_node",
@@ -820,7 +909,7 @@ if __name__ == '__main__':
     SHARD_SIZE = args.shard_size
     host_ip =  get_host_ip()
     
-    SELF_KEY = "http://" + get_ext_ip() + ":" + repr(port)+"/"
+    SELF_KEY = "http://" + get_host_ip() + ":" + repr(port)+"/"
     logging.info(f"SELF_KEY - {SELF_KEY}")
     peer_insert(get_my_key())
     app.run(host=host_ip, port=port, debug=True, threaded=False)

@@ -5,3 +5,8 @@ client/benchmark/data/*
 client/data.bak
 client/data/*
 client/peer_list.txt
+
+client/*.pem
+client/*.csv
+
+peer/*.pem

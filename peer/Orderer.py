@@ -31,6 +31,26 @@ max_number_of_transaction_in_single_block = 100
 
 peerlist = []
 
+@app.route('/init_node', methods=['GET'])
+def initialize():
+    global transaction_queue, creating_block, PREV_HASH, LAST_INDEX, bchain, worldstate, tracker, max_number_of_transaction_in_single_block, peerlist
+    transaction_queue = []
+    creating_block = False
+    PREV_HASH = ""
+    LAST_INDEX = 1
+    bchain = blockchain.Blockchain()
+    PREV_HASH = bchain.chain[0].hash
+    worldstate = blockchain.Worldstate()
+    tracker = blockchain.ShardInfoTracker()
+    max_number_of_transaction_in_single_block = 100
+    peerlist = []
+    return "Orderer Reset - Done", 200
+
+def get_ext_ip():
+    ip = requests.get('https://api.ipify.org').text 
+    logging.info(f'My public IP address is: {ip}')
+    return ip
+
 def get_host_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -86,30 +106,6 @@ def add_tx_to_queue():
         create_block()
     return "Transaction Enqued", 200
 
-
-@app.route('/initialize', methods=['POST'])
-def init_orderer():
-    global transaction_queue
-    global creating_block
-    global PREV_HASH
-    global LAST_INDEX
-    global bchain
-    global PREV_HASH
-    global worldstate
-    global tracker
-    global max_number_of_transaction_in_single_block
-
-    transaction_queue = []
-    creating_block = False
-    PREV_HASH=""
-    LAST_INDEX = 1
-    bchain = blockchain.Blockchain()
-    PREV_HASH = bchain.chain[0].hash
-    worldstate = blockchain.Worldstate()
-    tracker = blockchain.ShardInfoTracker()
-    max_number_of_transaction_in_single_block = 50
-
-
 @app.route('/register', methods=['POST'])
 def new_peer():
     peer_address = request.get_json()
@@ -126,8 +122,9 @@ if __name__ == '__main__':
     port = args.port
     NODE_NUMBER = port
     # NODE_NUMBER = args.node
-    host_ip =  get_host_ip()
+    host_ip =  get_ext_ip() #for cloud
+    # host_ip =  get_host_ip() #for local machine
     
-    SELF_KEY = "http://" + get_host_ip() + ":" + repr(port)+"/"
+    SELF_KEY = "http://" + host_ip + ":" + repr(port)+"/"
     print(SELF_KEY)
     app.run(host=host_ip, port=port, debug=True, threaded=False)
