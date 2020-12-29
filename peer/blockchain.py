@@ -45,13 +45,15 @@ class ShardInfoTracker:
 class Worldstate:
     def __init__(self):
         self.worldstate = {}
-        with open("initial_balance.txt",'r') as f:
+        self.publickeys = {}
+        '''with open("initial_balance.txt",'r') as f:
             for line in f:
                 key, value = line.partition(" ")[::2]
-                self.worldstate[key.strip()] = float(value)
+                self.worldstate[key.strip()] = float(value)'''
 
-    def insert(self, key, value):
-        self.worldstate['key'] = value
+    def insert(self, key, value, public_key):
+        self.worldstate[key] = float(value)
+        self.publickeys[key] = public_key
 
     def update(self, sender, receiver, amount):
         # need a check for double spending
@@ -72,7 +74,6 @@ class Worldstate:
             if not ret:
                 update_log['invalid'].append(tx)
             update_log['valid'].append(tx)
-        #print(json.dumps(update_log))
         return update_log
 
     def get(self, key):
